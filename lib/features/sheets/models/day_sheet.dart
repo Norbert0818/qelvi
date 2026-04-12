@@ -3,7 +3,6 @@ import 'trip_row.dart';
 class DaySheet {
   int id;
   String vehicleType;
-  String people;
   String fuelType;
   String date;
   String carNumber;
@@ -14,7 +13,6 @@ class DaySheet {
   DaySheet({
     required this.id,
     required this.vehicleType,
-    required this.people,
     required this.fuelType,
     required this.date,
     required this.carNumber,
@@ -28,7 +26,6 @@ class DaySheet {
   Map<String, dynamic> toJson() => {
     'id': id,
     'vehicleType': vehicleType,
-    'people': people,
     'fuelType': fuelType,
     'date': date,
     'carNumber': carNumber,
@@ -41,7 +38,6 @@ class DaySheet {
     return DaySheet(
       id: json['id'],
       vehicleType: json['vehicleType'] ?? '',
-      people: json['people'] ?? '',
       fuelType: json['fuelType'] ?? '',
       date: json['date'] ?? '',
       carNumber: json['carNumber'] ?? '',

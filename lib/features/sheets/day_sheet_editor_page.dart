@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-
-import '../../core/location/address_service.dart';
-import '../../core/tracking/tracking_service.dart';
 import 'models/day_sheet.dart';
 import 'models/trip_row.dart';
 
@@ -22,7 +18,6 @@ class DaySheetEditorPage extends StatefulWidget {
 
 class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
   late TextEditingController vehicleTypeController;
-  late TextEditingController peopleController;
   late TextEditingController fuelTypeController;
   late TextEditingController dateController;
   late TextEditingController carNumberController;
@@ -31,17 +26,12 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
 
   late List<TripRow> rows;
 
-  late final TrackingService _trackingService;
-  TrackingSnapshot tracking = TrackingSnapshot.empty();
-
   @override
   void initState() {
     super.initState();
 
     vehicleTypeController =
         TextEditingController(text: widget.daySheet.vehicleType);
-    peopleController =
-        TextEditingController(text: widget.daySheet.people);
     fuelTypeController =
         TextEditingController(text: widget.daySheet.fuelType);
     dateController =
@@ -64,59 +54,16 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
       ),
     )
         .toList();
-
-    _trackingService = TrackingService(AddressService());
-
-    FlutterForegroundTask.addTaskDataCallback(_onTaskData);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final restored = await _trackingService.restoreState();
-      if (!mounted) return;
-
-      setState(() {
-        tracking = restored;
-      });
-    });
-  }
-
-  void _onTaskData(Object data) {
-    if (data is! Map) return;
-
-    final m = Map<String, dynamic>.from(data);
-    if (m['type'] != 'update') return;
-
-    setState(() {
-      final km = m['distanceKm'];
-      final elapsed = m['elapsed'];
-
-      if (km is num) {
-        tracking = tracking.copyWith(
-          isTracking: true,
-          distanceKm: km.toDouble(),
-        );
-      }
-
-      if (elapsed is String) {
-        tracking = tracking.copyWith(
-          isTracking: true,
-          elapsed: elapsed,
-        );
-      }
-    });
   }
 
   @override
   void dispose() {
-    FlutterForegroundTask.removeTaskDataCallback(_onTaskData);
-
     vehicleTypeController.dispose();
-    peopleController.dispose();
     fuelTypeController.dispose();
     dateController.dispose();
     carNumberController.dispose();
     driverNameController.dispose();
     eventNameController.dispose();
-
     super.dispose();
   }
 
@@ -134,69 +81,10 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
     });
   }
 
-  Future<void> _startTracking() async {
-    try {
-      final result = await _trackingService.startTrip();
-
-      if (!mounted) return;
-      setState(() {
-        tracking = result.snapshot;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tracking started.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Start error: $e')),
-      );
-    }
-  }
-
-  Future<void> _stopTracking() async {
-    try {
-      final result = await _trackingService.stopTrip();
-
-      if (!mounted) return;
-
-      setState(() {
-        tracking = result.snapshot;
-
-        rows.add(
-          TripRow(
-            departurePlace: result.snapshot.startAddress ?? '',
-            departureTime: _formatTime(result.snapshot.startTime),
-            arrivalPlace: result.snapshot.endAddress ?? '',
-            arrivalTime: _formatTime(result.snapshot.endTime),
-            km: result.snapshot.distanceKm,
-          ),
-        );
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tracking stopped and trip row added.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Stop error: $e')),
-      );
-    }
-  }
-
-  String _formatTime(DateTime? value) {
-    if (value == null) return '';
-    final hh = value.hour.toString().padLeft(2, '0');
-    final mm = value.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
-  }
-
   void _save() {
     final updated = DaySheet(
       id: widget.daySheet.id,
       vehicleType: vehicleTypeController.text.trim(),
-      people: peopleController.text.trim(),
       fuelType: fuelTypeController.text.trim(),
       date: dateController.text.trim(),
       carNumber: carNumberController.text.trim(),
@@ -218,8 +106,7 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
     TextEditingController(text: row.departureTime);
     final arrivalPlaceController =
     TextEditingController(text: row.arrivalPlace);
-    final arrivalTimeController =
-    TextEditingController(text: row.arrivalTime);
+    final arrivalTimeController = TextEditingController(text: row.arrivalTime);
     final kmController =
     TextEditingController(text: row.km == 0 ? '' : row.km.toString());
 
@@ -300,11 +187,6 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
           ),
           const SizedBox(height: 10),
           TextField(
-            controller: peopleController,
-            decoration: const InputDecoration(labelText: 'People'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
             controller: fuelTypeController,
             decoration: const InputDecoration(labelText: 'Fuel type'),
           ),
@@ -328,51 +210,7 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
             controller: eventNameController,
             decoration: const InputDecoration(labelText: 'Event name'),
           ),
-          const SizedBox(height: 18),
-          Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tracking.isTracking
-                        ? 'Tracking is running'
-                        : 'Tracking is stopped',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('Distance: ${tracking.distanceKm.toStringAsFixed(2)} km'),
-                  Text('Elapsed: ${tracking.elapsed}'),
-                  Text('Start: ${tracking.startAddress ?? '-'}'),
-                  Text('End: ${tracking.endAddress ?? '-'}'),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed:
-                          tracking.isTracking ? null : _startTracking,
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('Start tracking'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed:
-                          tracking.isTracking ? _stopTracking : null,
-                          icon: const Icon(Icons.stop),
-                          label: const Text('Stop tracking'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
