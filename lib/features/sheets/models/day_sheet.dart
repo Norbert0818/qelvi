@@ -1,0 +1,55 @@
+import 'trip_row.dart';
+
+class DaySheet {
+  int id;
+  String vehicleType;
+  String people;
+  String fuelType;
+  String date;
+  String carNumber;
+  String driverName;
+  String eventName;
+  List<TripRow> rows;
+
+  DaySheet({
+    required this.id,
+    required this.vehicleType,
+    required this.people,
+    required this.fuelType,
+    required this.date,
+    required this.carNumber,
+    required this.driverName,
+    required this.eventName,
+    required this.rows,
+  });
+
+  double get totalKm => rows.fold(0.0, (sum, row) => sum + row.km);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'vehicleType': vehicleType,
+    'people': people,
+    'fuelType': fuelType,
+    'date': date,
+    'carNumber': carNumber,
+    'driverName': driverName,
+    'eventName': eventName,
+    'rows': rows.map((e) => e.toJson()).toList(),
+  };
+
+  factory DaySheet.fromJson(Map json) {
+    return DaySheet(
+      id: json['id'],
+      vehicleType: json['vehicleType'] ?? '',
+      people: json['people'] ?? '',
+      fuelType: json['fuelType'] ?? '',
+      date: json['date'] ?? '',
+      carNumber: json['carNumber'] ?? '',
+      driverName: json['driverName'] ?? '',
+      eventName: json['eventName'] ?? '',
+      rows: ((json['rows'] as List?) ?? [])
+          .map((e) => TripRow.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+    );
+  }
+}
