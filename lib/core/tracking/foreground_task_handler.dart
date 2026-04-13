@@ -29,16 +29,14 @@ class MyTaskHandler extends TaskHandler {
     _lastAcceptedAt = null;
 
     const settings = LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
+      accuracy: LocationAccuracy.high,
       distanceFilter: 0,
     );
 
-    // GPS figyelés indítása
     _sub = Geolocator.getPositionStream(
       locationSettings: settings,
     ).listen(_onPos);
 
-    // BELSŐ ÓRA INDÍTÁSA: Ez garantáltan ketyegni fog másodpercenként!
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _tick();
     });
@@ -57,6 +55,7 @@ class MyTaskHandler extends TaskHandler {
         pos.longitude,
       );
 
+      // Ideiglenesen kikommentelheted a 2 méteres szűrőt a szobai teszteléshez!
       if (step < minStepMeters) return;
 
       final dt = now.difference(_lastAcceptedAt!).inMilliseconds / 1000.0;
@@ -71,13 +70,20 @@ class MyTaskHandler extends TaskHandler {
     _lastAccepted = pos;
     _lastAcceptedAt = now;
 
-    // A GPS funkció feladata csak annyi maradt, hogy mentsen a háttértárba
+    // KISZEDTÜK INNEN A SharedPreferences MENTÉST!
     final km = _totalMeters / 1000.0;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('distance_km', km);
+    final elapsed = _startTime != null
+        ? _formatDuration(now.difference(_startTime!))
+        : '00:00:00';
+
+    // Azonnal küldjük az adatot a UI-nak
+    FlutterForegroundTask.sendDataToMain({
+      'type': 'update',
+      'distanceKm': km,
+      'elapsed': elapsed,
+    });
   }
 
-  // Ez a függvény felelős a számláló frissítéséért (Notification + UI)
   void _tick() {
     if (_startTime == null) return;
 
@@ -85,13 +91,11 @@ class MyTaskHandler extends TaskHandler {
     final km = _totalMeters / 1000.0;
     final elapsed = _formatDuration(now.difference(_startTime!));
 
-    // 1. Frissítjük a Notification-t minden másodpercben
     FlutterForegroundTask.updateService(
       notificationTitle: 'Qelvi is tracking',
       notificationText: '${km.toStringAsFixed(2)} km tracked – $elapsed elapsed',
     );
 
-    // 2. Küldjük az adatot az appnak (a UI-ba)
     FlutterForegroundTask.sendDataToMain({
       'type': 'update',
       'distanceKm': km,
@@ -106,7 +110,6 @@ class MyTaskHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp) async {
-    // Leállításkor mindent kikapcsolunk
     await _sub?.cancel();
     _timer?.cancel();
   }

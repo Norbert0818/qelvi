@@ -79,23 +79,30 @@ class _SheetsPageState extends State<SheetsPage> {
     final m = Map<String, dynamic>.from(data);
     if (m['type'] != 'update') return;
 
+    // setState(() {
+    //   final km = m['distanceKm'];
+    //   final elapsed = m['elapsed'];
+    //
+    //   if (km is num) {
+    //     tracking = tracking.copyWith(
+    //       isTracking: true,
+    //       distanceKm: km.toDouble(),
+    //     );
+    //   }
+    //
+    //   if (elapsed is String) {
+    //     tracking = tracking.copyWith(
+    //       isTracking: true,
+    //       elapsed: elapsed,
+    //     );
+    //   }
+    // });
     setState(() {
-      final km = m['distanceKm'];
-      final elapsed = m['elapsed'];
-
-      if (km is num) {
-        tracking = tracking.copyWith(
-          isTracking: true,
-          distanceKm: km.toDouble(),
-        );
-      }
-
-      if (elapsed is String) {
-        tracking = tracking.copyWith(
-          isTracking: true,
-          elapsed: elapsed,
-        );
-      }
+      tracking = tracking.copyWith(
+        isTracking: true,
+        distanceKm: (m['distanceKm'] as num?)?.toDouble() ?? tracking.distanceKm,
+        elapsed: (m['elapsed'] as String?) ?? tracking.elapsed,
+      );
     });
   }
 
