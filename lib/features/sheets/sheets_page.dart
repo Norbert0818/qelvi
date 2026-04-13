@@ -187,13 +187,10 @@ class _SheetsPageState extends State<SheetsPage> {
     return '$hh:$mm';
   }
 
-  // --- Kézi szerkesztő nyitása ---
   void _openEditor([DaySheet? existing]) {
-    final isNew = existing == null;
-
-    // Kézi új hozzáadásnál is használjuk az utolsó adatokat és a mai dátumot
     final now = DateTime.now();
-    final todayStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
+    final todayStr =
+        '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
     final lastSheet = sheets.isNotEmpty ? sheets.first : null;
 
     final daySheet = existing ??
@@ -204,16 +201,8 @@ class _SheetsPageState extends State<SheetsPage> {
           date: todayStr,
           carNumber: lastSheet?.carNumber ?? '',
           driverName: lastSheet?.driverName ?? '',
-          eventName: lastSheet?.eventName ?? 'Qelvi',
-          rows: [
-            TripRow(
-              departurePlace: '',
-              departureTime: '',
-              arrivalPlace: '',
-              arrivalTime: '',
-              km: 0,
-            )
-          ],
+          eventName: lastSheet?.eventName ?? 'Untold',
+          rows: [],
         );
 
     Navigator.push(
@@ -221,15 +210,19 @@ class _SheetsPageState extends State<SheetsPage> {
       MaterialPageRoute(
         builder: (_) => DaySheetEditorPage(
           daySheet: daySheet,
+          allSheets: sheets,
           onSave: (updated) async {
-            if (isNew) {
-              sheets.insert(0, updated);
+            final indexById = sheets.indexWhere((e) => e.id == updated.id);
+            final indexByDate = sheets.indexWhere((e) => e.date == updated.date);
+
+            if (indexById >= 0) {
+              sheets[indexById] = updated;
+            } else if (indexByDate >= 0) {
+              sheets[indexByDate] = updated;
             } else {
-              final index = sheets.indexWhere((e) => e.id == updated.id);
-              if (index >= 0) {
-                sheets[index] = updated;
-              }
+              sheets.insert(0, updated);
             }
+
             await _saveSheets();
           },
         ),

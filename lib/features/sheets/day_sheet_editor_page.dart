@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'models/day_sheet.dart';
-import 'models/trip_row.dart';
+import 'day_sheet_details_page.dart';
+import 'trip_rows_editor_page.dart';
 
 class DaySheetEditorPage extends StatefulWidget {
   final DaySheet daySheet;
+  final List<DaySheet> allSheets;
   final ValueChanged<DaySheet> onSave;
 
   const DaySheetEditorPage({
     super.key,
     required this.daySheet,
+    required this.allSheets,
     required this.onSave,
   });
 
@@ -17,153 +20,108 @@ class DaySheetEditorPage extends StatefulWidget {
 }
 
 class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
-  late TextEditingController vehicleTypeController;
-  late TextEditingController fuelTypeController;
-  late TextEditingController dateController;
-  late TextEditingController carNumberController;
-  late TextEditingController driverNameController;
-  late TextEditingController eventNameController;
-
-  late List<TripRow> rows;
+  late DaySheet sheet;
 
   @override
   void initState() {
     super.initState();
+    sheet = widget.daySheet;
+  }
 
-    vehicleTypeController =
-        TextEditingController(text: widget.daySheet.vehicleType);
-    fuelTypeController =
-        TextEditingController(text: widget.daySheet.fuelType);
-    dateController =
-        TextEditingController(text: widget.daySheet.date);
-    carNumberController =
-        TextEditingController(text: widget.daySheet.carNumber);
-    driverNameController =
-        TextEditingController(text: widget.daySheet.driverName);
-    eventNameController =
-        TextEditingController(text: widget.daySheet.eventName);
-
-    rows = widget.daySheet.rows
-        .map(
-          (e) => TripRow(
-        departurePlace: e.departurePlace,
-        departureTime: e.departureTime,
-        arrivalPlace: e.arrivalPlace,
-        arrivalTime: e.arrivalTime,
-        km: e.km,
+  Future<void> _openDetails() async {
+    final updated = await Navigator.push<DaySheet>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DaySheetDetailsPage(daySheet: sheet),
       ),
-    )
-        .toList();
+    );
+
+    if (updated != null) {
+      setState(() {
+        sheet = updated;
+      });
+    }
   }
 
-  @override
-  void dispose() {
-    vehicleTypeController.dispose();
-    fuelTypeController.dispose();
-    dateController.dispose();
-    carNumberController.dispose();
-    driverNameController.dispose();
-    eventNameController.dispose();
-    super.dispose();
+  Future<void> _openRows() async {
+    final updated = await Navigator.push<DaySheet>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TripRowsEditorPage(daySheet: sheet),
+      ),
+    );
+
+    if (updated != null) {
+      setState(() {
+        sheet = updated;
+      });
+    }
   }
 
-  void _addRow() {
+  Future<void> _pickDate() async {
+    final current = _parseDate(sheet.date) ?? DateTime.now();
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+    );
+
+    if (picked == null) return;
+
+    final newDate = _formatDate(picked);
+    final existing = _findSheetByDate(newDate);
+
     setState(() {
-      rows.add(
-        TripRow(
-          departurePlace: '',
-          departureTime: '',
-          arrivalPlace: '',
-          arrivalTime: '',
-          km: 0,
-        ),
-      );
+      sheet = existing ??
+          DaySheet(
+            id: DateTime.now().millisecondsSinceEpoch,
+            vehicleType: sheet.vehicleType,
+            fuelType: sheet.fuelType,
+            date: newDate,
+            carNumber: sheet.carNumber,
+            driverName: sheet.driverName,
+            eventName: sheet.eventName,
+            rows: [],
+          );
     });
   }
 
-  void _save() {
-    final updated = DaySheet(
-      id: widget.daySheet.id,
-      vehicleType: vehicleTypeController.text.trim(),
-      fuelType: fuelTypeController.text.trim(),
-      date: dateController.text.trim(),
-      carNumber: carNumberController.text.trim(),
-      driverName: driverNameController.text.trim(),
-      eventName: eventNameController.text.trim(),
-      rows: rows,
-    );
-
-    widget.onSave(updated);
-    Navigator.pop(context);
+  DaySheet? _findSheetByDate(String date) {
+    try {
+      return widget.allSheets.firstWhere((e) => e.date == date);
+    } catch (_) {
+      return null;
+    }
   }
 
-  Widget _buildRowEditor(int index) {
-    final row = rows[index];
+  String _formatDate(DateTime value) {
+    final dd = value.day.toString().padLeft(2, '0');
+    final mm = value.month.toString().padLeft(2, '0');
+    final yyyy = value.year.toString();
+    return '$dd.$mm.$yyyy';
+  }
 
-    final departurePlaceController =
-    TextEditingController(text: row.departurePlace);
-    final departureTimeController =
-    TextEditingController(text: row.departureTime);
-    final arrivalPlaceController =
-    TextEditingController(text: row.arrivalPlace);
-    final arrivalTimeController = TextEditingController(text: row.arrivalTime);
-    final kmController =
-    TextEditingController(text: row.km == 0 ? '' : row.km.toString());
+  DateTime? _parseDate(String raw) {
+    try {
+      final parts = raw.split('.');
+      if (parts.length != 3) return null;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                onPressed: () {
-                  setState(() {
-                    rows.removeAt(index);
-                  });
-                },
-                icon: const Icon(Icons.delete_outline),
-              ),
-            ),
-            TextField(
-              controller: departurePlaceController,
-              decoration: const InputDecoration(labelText: 'Departure place'),
-              onChanged: (value) => row.departurePlace = value,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: departureTimeController,
-              decoration: const InputDecoration(labelText: 'Departure time'),
-              onChanged: (value) => row.departureTime = value,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: arrivalPlaceController,
-              decoration: const InputDecoration(labelText: 'Arrival place'),
-              onChanged: (value) => row.arrivalPlace = value,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: arrivalTimeController,
-              decoration: const InputDecoration(labelText: 'Arrival time'),
-              onChanged: (value) => row.arrivalTime = value,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: kmController,
-              decoration: const InputDecoration(labelText: 'KM'),
-              keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (value) {
-                row.km = double.tryParse(value.replaceAll(',', '.')) ?? 0;
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+      final day = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final year = int.parse(parts[2]);
+
+      return DateTime(year, month, day);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _save() {
+    widget.onSave(sheet);
+    Navigator.pop(context);
   }
 
   @override
@@ -178,54 +136,52 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: vehicleTypeController,
-            decoration: const InputDecoration(labelText: 'Vehicle type'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: fuelTypeController,
-            decoration: const InputDecoration(labelText: 'Fuel type'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: dateController,
-            decoration: const InputDecoration(labelText: 'Date'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: carNumberController,
-            decoration: const InputDecoration(labelText: 'Car number'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: driverNameController,
-            decoration: const InputDecoration(labelText: 'Driver name'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: eventNameController,
-            decoration: const InputDecoration(labelText: 'Event name'),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Trip rows',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.calendar_today_outlined),
+                title: const Text('Date'),
+                subtitle: Text(sheet.date.isEmpty ? 'Select date' : sheet.date),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _pickDate,
               ),
-              IconButton(
-                onPressed: _addRow,
-                icon: const Icon(Icons.add_circle_outline),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.badge_outlined),
+                title: const Text('Details'),
+                subtitle: Text(
+                  '${sheet.vehicleType} • ${sheet.fuelType}\n${sheet.carNumber} • ${sheet.driverName}',
+                ),
+                isThreeLine: true,
               ),
-            ],
-          ),
-          ...List.generate(rows.length, _buildRowEditor),
-        ],
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.route_outlined),
+                title: const Text('Trip rows'),
+                subtitle: Text(
+                  '${sheet.rows.length} rows • ${sheet.totalKm.toStringAsFixed(2)} km total',
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _openDetails,
+              icon: const Icon(Icons.edit_note),
+              label: const Text('Edit details'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _openRows,
+              icon: const Icon(Icons.route_outlined),
+              label: const Text('Edit trip rows'),
+            ),
+          ],
+        ),
       ),
     );
   }
