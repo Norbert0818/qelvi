@@ -32,18 +32,14 @@ class SettingsPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'API base URL',
+                'need to move here the details page',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              SelectableText(settings.apiBaseUrl),
-              const SizedBox(height: 16),
               const Text(
-                'API key',
+                'Car, Event, Car type, etc...',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
-              SelectableText(settings.apiKey.isEmpty ? '(empty)' : settings.apiKey),
             ],
           ),
         ),

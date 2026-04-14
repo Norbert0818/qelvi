@@ -6,11 +6,45 @@ import 'app/app.dart';
 import 'core/location/address_service.dart';
 import 'core/tracking/tracking_service.dart';
 
+import 'package:home_widget/home_widget.dart';
+
+@pragma("vm:entry-point")
+Future<void> interactiveCallback(Uri? uri) async {
+  if (uri == null) return;
+
+  // Mivel ez a háttérben fut (akár bezárt appnál is), be kell tölteni a környezetet
+  await dotenv.load(fileName: '.env');
+  final trackingService = TrackingService(AddressService());
+
+  if (uri.host == 'start') {
+    print("🚀 WIDGET: START gomb megnyomva!");
+    try {
+      await trackingService.startTrip();
+      // Frissítjük a widget feliratát
+      await HomeWidget.saveWidgetData<String>('status_text', 'Tracking Started...');
+      await HomeWidget.updateWidget(name: 'QelviWidgetProvider');
+    } catch (e) {
+      print("Hiba a startnál: $e");
+    }
+  } else if (uri.host == 'stop') {
+    print("🛑 WIDGET: STOP gomb megnyomva!");
+    try {
+      await trackingService.stopTrip();
+      // Frissítjük a widget feliratát
+      await HomeWidget.saveWidgetData<String>('status_text', 'Ready to drive');
+      await HomeWidget.updateWidget(name: 'QelviWidgetProvider');
+    } catch (e) {
+      print("Hiba a stopnál: $e");
+    }
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: '.env');
   FlutterForegroundTask.initCommunicationPort();
+  HomeWidget.registerInteractivityCallback(interactiveCallback);
 
   final trackingService = TrackingService(AddressService());
   // await trackingService.init();

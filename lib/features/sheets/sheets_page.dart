@@ -128,6 +128,9 @@ class _SheetsPageState extends State<SheetsPage> {
 
   Future<void> _stopTracking() async {
     try {
+      // 1. ITT A LÉNYEG: Kimentjük a valós kilométert, mielőtt leállítjuk a motort!
+      final finalKm = tracking.distanceKm;
+
       final result = await _trackingService.stopTrip();
 
       if (!mounted) return;
@@ -136,7 +139,7 @@ class _SheetsPageState extends State<SheetsPage> {
         tracking = result.snapshot;
       });
 
-      // 1. Megnézzük mi a mai dátum (pl. 24.10.2023 formátum)
+      // 1. Megnézzük mi a mai dátum
       final now = DateTime.now();
       final todayStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
 
@@ -147,7 +150,7 @@ class _SheetsPageState extends State<SheetsPage> {
       if (sheetIndex >= 0) {
         activeSheet = sheets[sheetIndex];
       } else {
-        // 3. Ha nincs mai lap, létrehozunk egyet az utolsó lap adataival
+        // 3. Ha nincs mai lap, létrehozunk egyet
         final lastSheet = sheets.isNotEmpty ? sheets.first : null;
 
         activeSheet = DaySheet(
@@ -170,7 +173,7 @@ class _SheetsPageState extends State<SheetsPage> {
           departureTime: _formatTime(result.snapshot.startTime),
           arrivalPlace: result.snapshot.endAddress ?? '',
           arrivalTime: _formatTime(result.snapshot.endTime),
-          km: result.snapshot.distanceKm,
+          km: finalKm,
         ),
       );
 
