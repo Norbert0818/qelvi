@@ -12,10 +12,9 @@ import 'package:home_widget/home_widget.dart';
 Future<void> interactiveCallback(Uri? uri) async {
   if (uri == null) return;
 
-  // Mivel ez a háttérben fut (akár bezárt appnál is), be kell tölteni a környezetet
   await dotenv.load(fileName: '.env');
 
-  FlutterForeGroundTask.initCommunicationPort();
+  FlutterForegroundTask.initCommunicationPort();
   _initService();
   
   final trackingService = TrackingService(AddressService());
@@ -24,7 +23,6 @@ Future<void> interactiveCallback(Uri? uri) async {
     print("🚀 WIDGET: START gomb megnyomva!");
     try {
       await trackingService.startTrip();
-      // Frissítjük a widget feliratát
       await HomeWidget.saveWidgetData<String>('status_text', 'Tracking Started...');
       await HomeWidget.updateWidget(name: 'QelviWidgetProvider');
     } catch (e) {
@@ -34,7 +32,6 @@ Future<void> interactiveCallback(Uri? uri) async {
     print("🛑 WIDGET: STOP gomb megnyomva!");
     try {
       await trackingService.stopTrip();
-      // Frissítjük a widget feliratát
       await HomeWidget.saveWidgetData<String>('status_text', 'Ready to drive');
       await HomeWidget.updateWidget(name: 'QelviWidgetProvider');
     } catch (e) {
@@ -51,7 +48,6 @@ Future<void> main() async {
   HomeWidget.registerInteractivityCallback(interactiveCallback);
 
   final trackingService = TrackingService(AddressService());
-  // await trackingService.init();
   _initService();
   runApp(QelviApp(trackingService: trackingService));
 }
@@ -64,6 +60,7 @@ void _initService() {
       channelDescription:
       'This notification appears when the foreground service is running.',
       onlyAlertOnce: false,
+      visibility: NotificationVisibility.VISIBILITY_PUBLIC,
     ),
     iosNotificationOptions: const IOSNotificationOptions(
       showNotification: true,

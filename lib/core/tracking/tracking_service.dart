@@ -160,6 +160,9 @@ class TrackingService {
     final serviceResult = await FlutterForegroundTask.startService(
       notificationTitle: 'Qelvi is tracking',
       notificationText: '0.00 km tracked',
+      notificationButtons: [
+        const NotificationButton(id: 'btn_stop', text: '🛑 STOP'),
+      ],
       callback: startCallback,
     );
 

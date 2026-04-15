@@ -7,13 +7,17 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qelvi/app/app.dart';
+import 'package:qelvi/core/location/address_service.dart';
+import 'package:qelvi/core/tracking/tracking_service.dart';
 
 import 'package:qelvi/main.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const QelviApp());
+    final trackingService = TrackingService(AddressService());
+    await tester.pumpWidget(QelviApp(trackingService: trackingService,));
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);

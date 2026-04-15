@@ -94,6 +94,9 @@ class MyTaskHandler extends TaskHandler {
     FlutterForegroundTask.updateService(
       notificationTitle: 'Qelvi is tracking',
       notificationText: '${km.toStringAsFixed(2)} km tracked – $elapsed elapsed',
+      notificationButtons: [
+        const NotificationButton(id: 'btn_stop', text: '🛑 STOP'),
+      ],
     );
 
     FlutterForegroundTask.sendDataToMain({
