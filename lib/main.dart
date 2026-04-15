@@ -14,8 +14,12 @@ Future<void> interactiveCallback(Uri? uri) async {
 
   // Mivel ez a háttérben fut (akár bezárt appnál is), be kell tölteni a környezetet
   await dotenv.load(fileName: '.env');
-  final trackingService = TrackingService(AddressService());
 
+  FlutterForeGroundTask.initCommunicationPort();
+  _initService();
+  
+  final trackingService = TrackingService(AddressService());
+  
   if (uri.host == 'start') {
     print("🚀 WIDGET: START gomb megnyomva!");
     try {
