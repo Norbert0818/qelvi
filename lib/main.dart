@@ -64,7 +64,7 @@ void _initService() {
     ),
     iosNotificationOptions: const IOSNotificationOptions(
       showNotification: true,
-      playSound: true,
+      playSound: false,
     ),
     foregroundTaskOptions: ForegroundTaskOptions(
       eventAction: ForegroundTaskEventAction.repeat(1000),
