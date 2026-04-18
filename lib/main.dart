@@ -16,37 +16,37 @@ Future<void> interactiveCallback(Uri? uri) async {
 
   FlutterForegroundTask.initCommunicationPort();
   _initService();
-  
+
   final trackingService = TrackingService(AddressService());
-  
+
   if (uri.host == 'start') {
     print("🚀 WIDGET: START gomb megnyomva!");
     try {
-      await trackingService.startTrip();
+      // --- EZT JAVÍTOTTUK: Megmondjuk neki, hogy a háttérből indul! ---
+      await trackingService.startTrip(isBackground: true);
+
       await HomeWidget.saveWidgetData<String>('status_text', 'Tracking Started...');
       await HomeWidget.updateWidget(name: 'QelviWidgetProvider');
     } catch (e) {
       print("Hiba a startnál: $e");
     }
   } else if (uri.host == 'stop') {
-    print("🛑 WIDGET: STOP gomb megnyomva!");
     try {
-      await trackingService.stopTrip();
-      await HomeWidget.saveWidgetData<String>('status_text', 'Ready to drive');
+      await trackingService.stopAndSaveTrip();
+
+      await HomeWidget.saveWidgetData<String>('status_text', 'Trip Saved!');
       await HomeWidget.updateWidget(name: 'QelviWidgetProvider');
     } catch (e) {
-      print("Hiba a stopnál: $e");
+      print("Widget mentési hiba: $e");
     }
   }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await dotenv.load(fileName: '.env');
   FlutterForegroundTask.initCommunicationPort();
   HomeWidget.registerInteractivityCallback(interactiveCallback);
-
   final trackingService = TrackingService(AddressService());
   _initService();
   runApp(QelviApp(trackingService: trackingService));

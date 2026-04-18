@@ -54,6 +54,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
       carNumber: carNumberController.text.trim(),
       driverName: driverNameController.text.trim(),
       eventName: eventNameController.text.trim(),
+      isArchived: widget.daySheet.isArchived,
       rows: widget.daySheet.rows,
     );
 

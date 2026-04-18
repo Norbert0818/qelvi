@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'package:home_widget/home_widget.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,8 +15,8 @@ class MyTaskHandler extends TaskHandler {
   double _totalMeters = 0.0;
   DateTime? _startTime;
   StreamSubscription<Position>? _sub;
-  Timer? _timer; // <-- A belső óránk
 
+  // Beállítások a pontos GPS méréshez
   static const double maxAccuracyMeters = 15.0;
   static const double minStepMeters = 2.0;
   static const double maxSpeedMps = 55.0;
@@ -36,10 +36,6 @@ class MyTaskHandler extends TaskHandler {
     _sub = Geolocator.getPositionStream(
       locationSettings: settings,
     ).listen(_onPos);
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _tick();
-    });
   }
 
   Future<void> _onPos(Position pos) async {
@@ -55,7 +51,6 @@ class MyTaskHandler extends TaskHandler {
         pos.longitude,
       );
 
-      // Ideiglenesen kikommentelheted a 2 méteres szűrőt a szobai teszteléshez!
       if (step < minStepMeters) return;
 
       final dt = now.difference(_lastAcceptedAt!).inMilliseconds / 1000.0;
@@ -70,18 +65,22 @@ class MyTaskHandler extends TaskHandler {
     _lastAccepted = pos;
     _lastAcceptedAt = now;
 
-    // KISZEDTÜK INNEN A SharedPreferences MENTÉST!
     final km = _totalMeters / 1000.0;
     final elapsed = _startTime != null
         ? _formatDuration(now.difference(_startTime!))
         : '00:00:00';
 
-    // Azonnal küldjük az adatot a UI-nak
     FlutterForegroundTask.sendDataToMain({
       'type': 'update',
       'distanceKm': km,
       'elapsed': elapsed,
     });
+  }
+
+  // Ezt hívja meg az Android garantáltan másodpercenként a háttérben
+  @override
+  void onRepeatEvent(DateTime timestamp) {
+    _tick();
   }
 
   void _tick() {
@@ -91,35 +90,43 @@ class MyTaskHandler extends TaskHandler {
     final km = _totalMeters / 1000.0;
     final elapsed = _formatDuration(now.difference(_startTime!));
 
+    final statusText = '${km.toStringAsFixed(2)} km – $elapsed';
+
+    // 1. Azonnal frissítjük az értesítést (ez tartja életben a szálat)
     FlutterForegroundTask.updateService(
       notificationTitle: 'Qelvi is tracking',
-      notificationText: '${km.toStringAsFixed(2)} km tracked – $elapsed elapsed',
+      notificationText: statusText,
       notificationButtons: [
         const NotificationButton(id: 'btn_stop', text: '🛑 STOP'),
       ],
     );
 
+    // 2. Küldjük a jelet a UI-nak
     FlutterForegroundTask.sendDataToMain({
       'type': 'update',
       'distanceKm': km,
       'elapsed': elapsed,
     });
-  }
 
-  @override
-  void onRepeatEvent(DateTime timestamp) {
-    // Ezt most már békén hagyhatjuk, mert a belső Timer megoldja helyette!
+    // 3. Aszinkron mentjük a memóriát, hogy ne akasszuk meg az órát!
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setDouble('distance_km', km);
+    });
+
+    // 4. Aszinkron frissítjük a Widgetet
+    HomeWidget.saveWidgetData<String>('status_text', statusText).then((_) {
+      HomeWidget.updateWidget(name: 'QelviWidgetProvider');
+    });
   }
 
   @override
   Future<void> onDestroy(DateTime timestamp) async {
     await _sub?.cancel();
-    _timer?.cancel();
   }
 
   @override
   void onNotificationButtonPressed(String id) {
-    if (id == 'stop') {
+    if (id == 'stop' || id == 'btn_stop') {
       FlutterForegroundTask.stopService();
     }
   }

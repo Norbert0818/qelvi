@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/env.dart';
 import '../../core/location/address_service.dart';
@@ -24,11 +25,22 @@ class _SheetsPageState extends State<SheetsPage> {
   final _prefs = PrefsService();
 
   List<DaySheet> sheets = [];
-  SettingsModel settings = const SettingsModel(apiBaseUrl: '', apiKey: '');
+
+  // Initialize with fallback values
+  SettingsModel settings = const SettingsModel(
+    apiBaseUrl: '',
+    apiKey: '',
+    defaultDriverName: '',
+    defaultCarPlate: '',
+    activeEventName: 'Qelvi',
+    defaultFuelType: 'Motorină',
+    defaultVehicleType: 'Persoane',
+  );
+
   int selectedTab = 0;
   bool loading = true;
 
-  // --- Tracking változók ---
+  // --- Tracking Variables ---
   late final TrackingService _trackingService;
   TrackingSnapshot tracking = TrackingSnapshot.empty();
 
@@ -56,12 +68,19 @@ class _SheetsPageState extends State<SheetsPage> {
 
   Future<void> _loadData() async {
     final loadedSheets = await _prefs.loadDaySheets();
+    final prefs = await SharedPreferences.getInstance();
 
     setState(() {
       sheets = loadedSheets;
+      // Load both the API keys and the default profile data
       settings = SettingsModel(
         apiBaseUrl: Env.apiBaseUrl,
         apiKey: Env.apiKey,
+        defaultDriverName: prefs.getString('default_driver_name') ?? '',
+        defaultCarPlate: prefs.getString('default_car_number') ?? '',
+        activeEventName: prefs.getString('active_event_name') ?? 'Qelvi',
+        defaultFuelType: prefs.getString('default_fuel_type') ?? 'Motorină',
+        defaultVehicleType: prefs.getString('default_vehicle_type') ?? 'Persoane',
       );
       loading = false;
     });
@@ -72,38 +91,25 @@ class _SheetsPageState extends State<SheetsPage> {
     setState(() {});
   }
 
-  // --- Tracking Logika ---
+  // --- Tracking Logic ---
   void _onTaskData(Object data) {
-    if (data is! Map) return;
-
-    final m = Map<String, dynamic>.from(data);
-    if (m['type'] != 'update') return;
-
-    // setState(() {
-    //   final km = m['distanceKm'];
-    //   final elapsed = m['elapsed'];
-    //
-    //   if (km is num) {
-    //     tracking = tracking.copyWith(
-    //       isTracking: true,
-    //       distanceKm: km.toDouble(),
-    //     );
-    //   }
-    //
-    //   if (elapsed is String) {
-    //     tracking = tracking.copyWith(
-    //       isTracking: true,
-    //       elapsed: elapsed,
-    //     );
-    //   }
-    // });
-    setState(() {
-      tracking = tracking.copyWith(
-        isTracking: true,
-        distanceKm: (m['distanceKm'] as num?)?.toDouble() ?? tracking.distanceKm,
-        elapsed: (m['elapsed'] as String?) ?? tracking.elapsed,
-      );
-    });
+    if (data is Map) {
+      if (data['type'] == 'update') {
+        // Ensure UI updates by calling setState
+        setState(() {
+          tracking = tracking.copyWith(
+            isTracking: true, // Force it to show as tracking
+            // Use dynamic parsing to safely handle the numbers
+            distanceKm: (data['distanceKm'] is num)
+                ? (data['distanceKm'] as num).toDouble()
+                : tracking.distanceKm,
+            elapsed: (data['elapsed'] is String)
+                ? data['elapsed'] as String
+                : tracking.elapsed,
+          );
+        });
+      }
+    }
   }
 
   Future<void> _startTracking() async {
@@ -128,10 +134,9 @@ class _SheetsPageState extends State<SheetsPage> {
 
   Future<void> _stopTracking() async {
     try {
-      // 1. ITT A LÉNYEG: Kimentjük a valós kilométert, mielőtt leállítjuk a motort!
-      final finalKm = tracking.distanceKm;
-
-      final result = await _trackingService.stopTrip();
+      // We now use the smart stop function from tracking_service
+      // which automatically handles finding/creating the DaySheet!
+      final result = await _trackingService.stopAndSaveTrip();
 
       if (!mounted) return;
 
@@ -139,48 +144,11 @@ class _SheetsPageState extends State<SheetsPage> {
         tracking = result.snapshot;
       });
 
-      // 1. Megnézzük mi a mai dátum
-      final now = DateTime.now();
-      final todayStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
-
-      // 2. Keresünk egy lapot, aminek ez a dátuma
-      int sheetIndex = sheets.indexWhere((s) => s.date == todayStr);
-      DaySheet activeSheet;
-
-      if (sheetIndex >= 0) {
-        activeSheet = sheets[sheetIndex];
-      } else {
-        // 3. Ha nincs mai lap, létrehozunk egyet
-        final lastSheet = sheets.isNotEmpty ? sheets.first : null;
-
-        activeSheet = DaySheet(
-          id: DateTime.now().millisecondsSinceEpoch,
-          vehicleType: lastSheet?.vehicleType ?? 'Persoane',
-          fuelType: lastSheet?.fuelType ?? 'Motorină',
-          date: todayStr,
-          carNumber: lastSheet?.carNumber ?? '',
-          driverName: lastSheet?.driverName ?? '',
-          eventName: lastSheet?.eventName ?? 'Qelvi',
-          rows: [],
-        );
-        sheets.insert(0, activeSheet);
-      }
-
-      // 4. Hozzáadjuk az utat a napi laphoz
-      activeSheet.rows.add(
-        TripRow(
-          departurePlace: result.snapshot.startAddress ?? '',
-          departureTime: _formatTime(result.snapshot.startTime),
-          arrivalPlace: result.snapshot.endAddress ?? '',
-          arrivalTime: _formatTime(result.snapshot.endTime),
-          km: finalKm,
-        ),
-      );
-
-      await _saveSheets();
+      // Reload the data from memory so the newly created row appears instantly
+      await _loadData();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tracking stopped and trip saved to today\'s sheet.')),
+        const SnackBar(content: Text('Tracking stopped and saved successfully.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -190,28 +158,20 @@ class _SheetsPageState extends State<SheetsPage> {
     }
   }
 
-  String _formatTime(DateTime? value) {
-    if (value == null) return '';
-    final hh = value.hour.toString().padLeft(2, '0');
-    final mm = value.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
-  }
-
   void _openEditor([DaySheet? existing]) {
     final now = DateTime.now();
-    final todayStr =
-        '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
-    final lastSheet = sheets.isNotEmpty ? sheets.first : null;
+    final todayStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
 
+    // When creating a new manual sheet, use the settings defaults!
     final daySheet = existing ??
         DaySheet(
           id: DateTime.now().millisecondsSinceEpoch,
-          vehicleType: lastSheet?.vehicleType ?? 'Persoane',
-          fuelType: lastSheet?.fuelType ?? 'Motorină',
+          vehicleType: settings.defaultVehicleType,
+          fuelType: settings.defaultFuelType,
           date: todayStr,
-          carNumber: lastSheet?.carNumber ?? '',
-          driverName: lastSheet?.driverName ?? '',
-          eventName: lastSheet?.eventName ?? 'Untold',
+          carNumber: settings.defaultCarPlate,
+          driverName: settings.defaultDriverName,
+          eventName: settings.activeEventName,
           rows: [],
         );
 
@@ -245,56 +205,53 @@ class _SheetsPageState extends State<SheetsPage> {
     await _saveSheets();
   }
 
-  // Future<void> _export() async {
-  //   if (settings.apiBaseUrl.isEmpty || settings.apiKey.isEmpty) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text('Set backend URL and API key first.')),
-  //     );
-  //     setState(() {
-  //       selectedTab = 1;
-  //     });
-  //     return;
-  //   }
-  //
-  //   try {
-  //     final apiClient = ApiClient(
-  //       baseUrl: settings.apiBaseUrl,
-  //       apiKey: settings.apiKey,
-  //     );
-  //
-  //     final exportService = ExportService(apiClient: apiClient);
-  //     final file = await exportService.exportDaySheets(sheets);
-  //     await exportService.shareExportedFile(file);
-  //
-  //     if (!mounted) return;
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text('Excel exported successfully.')),
-  //     );
-  //   } catch (e, stackTrace) {  // <-- Írd hozzá a stackTrace-t!
-  //     if (!mounted) return;
-  //
-  //     // EZT ADD HOZZÁ: Kőkeményen kiíratjuk a fejlesztői konzolba!
-  //     print('================ EXPORT HIBA ================');
-  //     print(e.toString());
-  //     print(stackTrace.toString());
-  //     print('=============================================');
-  //
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //         content: Text('Export error: $e'),
-  //         duration: const Duration(seconds: 5), // Legyen kint 5 másodpercig
-  //       ),
-  //     );
-  //   }
-  // }
+  Future<void> _archiveCurrentEvent() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Archive event: ${settings.activeEventName}?'),
+        content: const Text(
+          'All sheets belonging to this event will be hidden from the main screen, '
+              'but they will be kept safely in the database.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() {
+      for (var sheet in sheets) {
+        if (sheet.eventName == settings.activeEventName) {
+          sheet.isArchived = true;
+        }
+      }
+    });
+
+    await _saveSheets();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${settings.activeEventName} successfully archived!')),
+    );
+  }
 
   Future<void> _export() async {
     if (settings.apiBaseUrl.isEmpty || settings.apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Set backend URL and API key first.')),
+        const SnackBar(content: Text('Please configure API settings first.')),
       );
       setState(() {
-        selectedTab = 1;
+        selectedTab = 1; // Switch to settings tab
       });
       return;
     }
@@ -307,29 +264,36 @@ class _SheetsPageState extends State<SheetsPage> {
 
       final exportService = ExportService(apiClient: apiClient);
 
-      // Itt hívjuk meg az új letöltő függvényt
-      await exportService.downloadDaySheets(sheets);
+      // Pass only the non-archived sheets for the active event to the export
+      final activeSheets = sheets.where((s) => !s.isArchived && s.eventName == settings.activeEventName).toList();
+
+      await exportService.downloadDaySheets(activeSheets);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Sikeres letöltés! Keresd a Letöltések mappában.'),
+          content: Text('Download successful! Check your Downloads folder.'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hiba a letöltés során: $e')),
+        SnackBar(content: Text('Download error: $e')),
       );
     }
   }
 
   Widget _buildSheetsTab() {
+    // ONLY show sheets that are NOT archived AND belong to the active event
+    final activeSheets = sheets.where((s) =>
+    !s.isArchived && s.eventName == settings.activeEventName
+    ).toList();
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // --- TRACKING KÁRTYA ---
+        // --- TRACKING CARD ---
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -411,18 +375,33 @@ class _SheetsPageState extends State<SheetsPage> {
           ),
         ),
 
-        // --- CÍMSOR ÉS GOMBOK ---
+        // --- HEADER AND BUTTONS ---
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Day sheets',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            Expanded(
+              child: Text(
+                settings.activeEventName.isEmpty ? 'Day sheets' : settings.activeEventName,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            FilledButton.icon(
-              onPressed: () => _openEditor(),
-              icon: const Icon(Icons.add),
-              label: const Text('Add Manual'),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'add') _openEditor();
+                if (value == 'archive') _archiveCurrentEvent();
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'add',
+                  child: Row(children: [Icon(Icons.add), SizedBox(width: 8), Text('Add Manual')]),
+                ),
+                const PopupMenuItem(
+                  value: 'archive',
+                  child: Row(children: [Icon(Icons.archive_outlined), SizedBox(width: 8), Text('Archive Event')]),
+                ),
+              ],
             ),
           ],
         ),
@@ -430,15 +409,19 @@ class _SheetsPageState extends State<SheetsPage> {
         OutlinedButton.icon(
           onPressed: _export,
           icon: const Icon(Icons.download),
-          label: const Text('Export Excel'),
+          label: const Text('Export Excel (Active Event)'),
         ),
         const SizedBox(height: 16),
-        if (sheets.isEmpty)
+
+        // Show empty message if activeSheets is empty
+        if (activeSheets.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 50),
-            child: Center(child: Text('No day sheets yet.')),
+            child: Center(child: Text('No sheets found for this event.')),
           ),
-        ...sheets.map(
+
+        // Map over activeSheets instead of all sheets
+        ...activeSheets.map(
               (sheet) => Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
@@ -471,7 +454,7 @@ class _SheetsPageState extends State<SheetsPage> {
                   ),
                   Text('Vehicle type: ${sheet.vehicleType}'),
                   Text('Fuel type: ${sheet.fuelType}'),
-                  Text('Car number: ${sheet.carNumber}'),
+                  Text('Car plate: ${sheet.carNumber}'),
                   Text('Driver: ${sheet.driverName}'),
                   Text('Rows: ${sheet.rows.length}'),
                   const SizedBox(height: 8),
@@ -489,7 +472,10 @@ class _SheetsPageState extends State<SheetsPage> {
   }
 
   Widget _buildSettingsTab() {
-    return SettingsPage(settings: settings);
+    return SettingsPage(
+      settings: settings,
+      onSettingsChanged: _loadData, // We pass a callback so Settings can refresh the main page when you change cars
+    );
   }
 
   @override
@@ -510,6 +496,8 @@ class _SheetsPageState extends State<SheetsPage> {
         onDestinationSelected: (index) {
           setState(() {
             selectedTab = index;
+            // Always reload data when switching tabs to ensure settings are fresh
+            if (index == 0) _loadData();
           });
         },
         destinations: const [

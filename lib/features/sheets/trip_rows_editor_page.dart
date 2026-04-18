@@ -56,6 +56,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
       carNumber: widget.daySheet.carNumber,
       driverName: widget.daySheet.driverName,
       eventName: widget.daySheet.eventName,
+      isArchived: widget.daySheet.isArchived,
       rows: rows,
     );
 

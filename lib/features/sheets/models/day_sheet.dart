@@ -8,6 +8,7 @@ class DaySheet {
   String carNumber;
   String driverName;
   String eventName;
+  bool isArchived;
   List<TripRow> rows;
 
   DaySheet({
@@ -18,6 +19,7 @@ class DaySheet {
     required this.carNumber,
     required this.driverName,
     required this.eventName,
+    this.isArchived = false,
     required this.rows,
   });
 
@@ -31,6 +33,7 @@ class DaySheet {
     'carNumber': carNumber,
     'driverName': driverName,
     'eventName': eventName,
+    'isArchived': isArchived,
     'rows': rows.map((e) => e.toJson()).toList(),
   };
 
@@ -43,6 +46,7 @@ class DaySheet {
       carNumber: json['carNumber'] ?? '',
       driverName: json['driverName'] ?? '',
       eventName: json['eventName'] ?? '',
+      isArchived: json['isArchived'] ?? false,
       rows: ((json['rows'] as List?) ?? [])
           .map((e) => TripRow.fromJson(Map<String, dynamic>.from(e)))
           .toList(),

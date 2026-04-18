@@ -7,6 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'foreground_task_handler.dart';
 import '../location/address_service.dart';
 
+// --- ÚJ IMPORTOK A MENTÉSHEZ ---
+import '../storage/prefs_service.dart';
+import '../../features/sheets/models/day_sheet.dart';
+import '../../features/sheets/models/trip_row.dart';
+
 class TrackingSnapshot {
   final bool isTracking;
   final double distanceKm;
@@ -57,18 +62,17 @@ class TrackingSnapshot {
 
 class TrackingStartResult {
   final TrackingSnapshot snapshot;
-
   const TrackingStartResult(this.snapshot);
 }
 
 class TrackingStopResult {
   final TrackingSnapshot snapshot;
-
   const TrackingStopResult(this.snapshot);
 }
 
 class TrackingService {
   final AddressService _addressService;
+  final PrefsService _prefsService = PrefsService(); // <-- PÉLDÁNYOSÍTJUK A MENTÉSHEZ
 
   TrackingService(this._addressService);
 
@@ -76,31 +80,6 @@ class TrackingService {
   static const _startTimeKey = 'start_time';
   static const _distanceKmKey = 'distance_km';
   static const _totalDistanceLegacyKey = 'total_distance';
-
-  //it works just in main
-  // Future<void> init() async {
-  //   FlutterForegroundTask.initCommunicationPort();
-  //
-  //   FlutterForegroundTask.init(
-  //     androidNotificationOptions: AndroidNotificationOptions(
-  //       channelId: 'qelvi_tracking',
-  //       channelName: 'Trip Tracking',
-  //       channelDescription: 'Tracking notification while a trip is running.',
-  //       onlyAlertOnce: false,
-  //     ),
-  //     iosNotificationOptions: const IOSNotificationOptions(
-  //       showNotification: true,
-  //       playSound: true,
-  //     ),
-  //     foregroundTaskOptions: ForegroundTaskOptions(
-  //       eventAction: ForegroundTaskEventAction.repeat(1000),
-  //       autoRunOnBoot: true,
-  //       autoRunOnMyPackageReplaced: true,
-  //       allowWakeLock: true,
-  //       allowWifiLock: true,
-  //     ),
-  //   );
-  // }
 
   Future<bool> ensurePermissions() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -138,14 +117,16 @@ class TrackingService {
 
   Future<bool> isRunning() async {
     return FlutterForegroundTask.isRunningService;
-
-
   }
 
-  Future<TrackingStartResult> startTrip() async {
-    final ok = await ensurePermissions();
-    if (!ok) {
-      throw Exception('Location permission was not granted.');
+  // Adtunk neki egy isBackground paramétert!
+  Future<TrackingStartResult> startTrip({bool isBackground = false}) async {
+    // Ha a widgetről indítjuk (háttérből), NE próbáljunk meg engedély-kérő ablakokat feldobni, mert kifagy!
+    if (!isBackground) {
+      final ok = await ensurePermissions();
+      if (!ok) {
+        throw Exception('Location permission was not granted.');
+      }
     }
 
     final alreadyRunning = await isRunning();
@@ -153,8 +134,20 @@ class TrackingService {
       throw Exception('Tracking already started.');
     }
 
-    final pos = await Geolocator.getCurrentPosition();
-    final startAddress = await _addressService.resolveAddress(pos);
+    // Védjük le a GPS lekérést egy 5 másodperces időkorláttal, hogy a háttérben ne fagyjon le!
+    Position? pos;
+    try {
+      pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
+    } catch (e) {
+      // Ha nem talál jelet 5 mp alatt, kérje le az utolsó ismert pozíciót
+      pos = await Geolocator.getLastKnownPosition();
+    }
+
+    String startAddress = 'Ismeretlen hely';
+    if (pos != null) {
+      startAddress = await _addressService.resolveAddress(pos);
+    }
+
     final startTime = DateTime.now();
 
     final serviceResult = await FlutterForegroundTask.startService(
@@ -188,29 +181,85 @@ class TrackingService {
     return TrackingStartResult(snapshot);
   }
 
-  Future<TrackingStopResult> stopTrip() async {
+  Future<TrackingStopResult> stopAndSaveTrip() async {
     final running = await isRunning();
     if (!running) {
       throw Exception('Tracking is not running.');
     }
 
     final prefs = await SharedPreferences.getInstance();
+    // 1. KRITIKUS: Újratöltjük a memóriát, hogy megkapjuk a háttérben futó kilométereket!
+    await prefs.reload();
+
     final savedStartTimeRaw = prefs.getString(_startTimeKey);
     final savedStartAddress = prefs.getString(_startAddressKey);
     final savedDistanceKm = prefs.getDouble(_distanceKmKey) ?? 0.0;
 
     await FlutterForegroundTask.stopService();
 
-    final pos = await Geolocator.getCurrentPosition();
-    final endAddress = await _addressService.resolveAddress(pos);
+    // 2. KRITIKUS: Védjük a GPS lekérést 5 másodperces időkorláttal!
+    Position? pos;
+    try {
+      pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
+    } catch (e) {
+      pos = await Geolocator.getLastKnownPosition();
+    }
+
+    String endAddress = 'Ismeretlen hely';
+    if (pos != null) {
+      endAddress = await _addressService.resolveAddress(pos);
+    }
+
     final endTime = DateTime.now();
+    final startTime = savedStartTimeRaw != null ? DateTime.tryParse(savedStartTimeRaw) : null;
+    final elapsed = startTime != null ? _formatDuration(endTime.difference(startTime)) : '00:00:00';
 
-    final startTime =
-    savedStartTimeRaw != null ? DateTime.tryParse(savedStartTimeRaw) : null;
+    final todayStr = _formatDate(endTime);
 
-    final elapsed = startTime != null
-        ? _formatDuration(endTime.difference(startTime))
-        : '00:00:00';
+    final defaultVehicleType = prefs.getString('default_vehicle_type') ?? 'Persoane';
+    final defaultFuelType = prefs.getString('default_fuel_type') ?? 'Motorină';
+    final defaultCarNumber = prefs.getString('default_car_number') ?? 'Ismeretlen';
+    final defaultDriverName = prefs.getString('default_driver_name') ?? 'Sofőr';
+    final activeEventName = prefs.getString('active_event_name') ?? 'Qelvi';
+
+    List<DaySheet> allSheets = await _prefsService.loadDaySheets();
+
+    int sheetIndex = allSheets.indexWhere((s) =>
+    s.date == todayStr &&
+        s.carNumber == defaultCarNumber &&
+        s.eventName == activeEventName &&
+        !s.isArchived
+    );
+
+    DaySheet activeSheet;
+    if (sheetIndex >= 0) {
+      activeSheet = allSheets[sheetIndex];
+    } else {
+      activeSheet = DaySheet(
+        id: DateTime.now().millisecondsSinceEpoch,
+        vehicleType: defaultVehicleType,
+        fuelType: defaultFuelType,
+        date: todayStr,
+        carNumber: defaultCarNumber,
+        driverName: defaultDriverName,
+        eventName: activeEventName,
+        rows: [],
+      );
+      allSheets.insert(0, activeSheet);
+    }
+
+    // Új sor hozzáadása a megtalált/létrehozott táblázathoz
+    activeSheet.rows.add(
+      TripRow(
+        departurePlace: savedStartAddress ?? '',
+        departureTime: _formatTime(startTime),
+        arrivalPlace: endAddress,
+        arrivalTime: _formatTime(endTime),
+        km: savedDistanceKm,
+      ),
+    );
+
+    await _prefsService.saveDaySheets(allSheets);
 
     await prefs.remove(_startAddressKey);
     await prefs.remove(_startTimeKey);
@@ -229,7 +278,6 @@ class TrackingService {
       ),
     );
   }
-
 
   Future<TrackingSnapshot> restoreState() async {
     final prefs = await SharedPreferences.getInstance();
@@ -262,12 +310,19 @@ class TrackingService {
     );
   }
 
+  String _formatDate(DateTime d) {
+    return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+  }
+
+  String _formatTime(DateTime? d) {
+    if (d == null) return '';
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
   String _formatDuration(Duration d) {
     final h = d.inHours.toString().padLeft(2, '0');
     final m = (d.inMinutes % 60).toString().padLeft(2, '0');
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$h:$m:$s';
   }
-
-
 }
