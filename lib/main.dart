@@ -59,7 +59,7 @@ void _initService() {
       channelName: 'Foreground Service Notification',
       channelDescription:
       'This notification appears when the foreground service is running.',
-      onlyAlertOnce: false,
+      onlyAlertOnce: true,
       visibility: NotificationVisibility.VISIBILITY_PUBLIC,
     ),
     iosNotificationOptions: const IOSNotificationOptions(
