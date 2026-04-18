@@ -81,34 +81,67 @@ class TrackingService {
   static const _distanceKmKey = 'distance_km';
   static const _totalDistanceLegacyKey = 'total_distance';
 
+  // Future<bool> ensurePermissions() async {
+  //   bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  //   if (!serviceEnabled) {
+  //     await Geolocator.openLocationSettings();
+  //     serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  //     if (!serviceEnabled) return false;
+  //   }
+  //
+  //   if (await Permission.notification.isDenied) {
+  //     await Permission.notification.request();
+  //   }
+  //
+  //   final whenInUse = await Permission.locationWhenInUse.request();
+  //   if (!whenInUse.isGranted) return false;
+  //
+  //   final always = await Permission.locationAlways.request();
+  //   if (!always.isGranted && Platform.isIOS) {
+  //     await openAppSettings();
+  //     return false;
+  //   }
+  //
+  //   LocationPermission permission = await Geolocator.checkPermission();
+  //   if (permission == LocationPermission.denied ||
+  //       permission == LocationPermission.deniedForever) {
+  //     permission = await Geolocator.requestPermission();
+  //     if (permission == LocationPermission.denied ||
+  //         permission == LocationPermission.deniedForever) {
+  //       return false;
+  //     }
+  //   }
+  //
+  //   return true;
+  // }
+
   Future<bool> ensurePermissions() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      await Geolocator.openLocationSettings();
-      serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return false;
+      return false;
     }
 
     if (await Permission.notification.isDenied) {
       await Permission.notification.request();
     }
 
-    final whenInUse = await Permission.locationWhenInUse.request();
-    if (!whenInUse.isGranted) return false;
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return false;
+      }
+    }
 
-    final always = await Permission.locationAlways.request();
-    if (!always.isGranted && Platform.isIOS) {
-      await openAppSettings();
+    if (permission == LocationPermission.deniedForever) {
+      await Geolocator.openAppSettings();
       return false;
     }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return false;
+    if (permission == LocationPermission.whileInUse) {
+      final alwaysStatus = await Permission.locationAlways.request();
+      if (!alwaysStatus.isGranted && Platform.isIOS) {
+        await openAppSettings();
       }
     }
 
