@@ -16,7 +16,6 @@ class MyTaskHandler extends TaskHandler {
   DateTime? _startTime;
   StreamSubscription<Position>? _sub;
 
-  // Beállítások a pontos GPS méréshez
   static const double maxAccuracyMeters = 15.0;
   static const double minStepMeters = 2.0;
   static const double maxSpeedMps = 55.0;
@@ -77,7 +76,6 @@ class MyTaskHandler extends TaskHandler {
     });
   }
 
-  // Ezt hívja meg az Android garantáltan másodpercenként a háttérben
   @override
   void onRepeatEvent(DateTime timestamp) {
     _tick();
@@ -92,7 +90,6 @@ class MyTaskHandler extends TaskHandler {
 
     final statusText = '${km.toStringAsFixed(2)} km – $elapsed';
 
-    // 1. Azonnal frissítjük az értesítést (ez tartja életben a szálat)
     FlutterForegroundTask.updateService(
       notificationTitle: 'Qelvi is tracking',
       notificationText: statusText,
@@ -101,19 +98,16 @@ class MyTaskHandler extends TaskHandler {
       ],
     );
 
-    // 2. Küldjük a jelet a UI-nak
     FlutterForegroundTask.sendDataToMain({
       'type': 'update',
       'distanceKm': km,
       'elapsed': elapsed,
     });
 
-    // 3. Aszinkron mentjük a memóriát, hogy ne akasszuk meg az órát!
     SharedPreferences.getInstance().then((prefs) {
       prefs.setDouble('distance_km', km);
     });
 
-    // 4. Aszinkron frissítjük a Widgetet
     HomeWidget.saveWidgetData<String>('status_text', statusText).then((_) {
       HomeWidget.updateWidget(name: 'QelviWidgetProvider');
     });

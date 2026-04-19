@@ -63,64 +63,126 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
     Navigator.pop(context, updated);
   }
 
+  // Modern input decoration helper
+  InputDecoration _modernInput(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, size: 20, color: Colors.blue.shade700),
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200, width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+      ),
+    );
+  }
+
   Widget _buildRowEditor(int index) {
     final row = rows[index];
 
-    final departurePlaceController =
-    TextEditingController(text: row.departurePlace);
-    final departureTimeController =
-    TextEditingController(text: row.departureTime);
-    final arrivalPlaceController =
-    TextEditingController(text: row.arrivalPlace);
-    final arrivalTimeController =
-    TextEditingController(text: row.arrivalTime);
-    final kmController =
-    TextEditingController(text: row.km == 0 ? '' : row.km.toString());
+    final departurePlaceController = TextEditingController(text: row.departurePlace);
+    final departureTimeController = TextEditingController(text: row.departureTime);
+    final arrivalPlaceController = TextEditingController(text: row.arrivalPlace);
+    final arrivalTimeController = TextEditingController(text: row.arrivalTime);
+    final kmController = TextEditingController(text: row.km == 0 ? '' : row.km.toString());
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                onPressed: () {
-                  setState(() {
-                    rows.removeAt(index);
-                  });
-                },
-                icon: const Icon(Icons.delete_outline),
-              ),
+            // Card Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.route, size: 18, color: Colors.blue.shade700),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Trip #${index + 1}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      rows.removeAt(index);
+                    });
+                  },
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  tooltip: 'Delete row',
+                ),
+              ],
             ),
+            const Divider(height: 24),
+
+            // Departure Info
             TextField(
               controller: departurePlaceController,
-              decoration: const InputDecoration(labelText: 'Departure place'),
+              decoration: _modernInput('Departure place', Icons.my_location),
               onChanged: (value) => row.departurePlace = value,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             TextField(
               controller: departureTimeController,
-              decoration: const InputDecoration(labelText: 'Departure time'),
+              decoration: _modernInput('Departure time', Icons.access_time),
               onChanged: (value) => row.departureTime = value,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+
+            // Arrival Info
             TextField(
               controller: arrivalPlaceController,
-              decoration: const InputDecoration(labelText: 'Arrival place'),
+              decoration: _modernInput('Arrival place', Icons.location_on),
               onChanged: (value) => row.arrivalPlace = value,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             TextField(
               controller: arrivalTimeController,
-              decoration: const InputDecoration(labelText: 'Arrival time'),
+              decoration: _modernInput('Arrival time', Icons.access_time_filled),
               onChanged: (value) => row.arrivalTime = value,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+
+            // KM Info
             TextField(
               controller: kmController,
-              decoration: const InputDecoration(labelText: 'KM'),
+              decoration: _modernInput('KM', Icons.directions_car),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               onChanged: (value) {
                 row.km = double.tryParse(value.replaceAll(',', '.')) ?? 0;
@@ -138,20 +200,36 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
     final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text('Trip rows - ${widget.daySheet.date}'),
+        backgroundColor: Colors.grey.shade50,
+        surfaceTintColor: Colors.transparent,
+        title: Text(
+          'Trip rows - ${widget.daySheet.date}',
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        ),
         actions: [
-          TextButton(
-            onPressed: _save,
-            child: const Text('Save'),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: FilledButton.tonal(
+              onPressed: _save,
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Save'),
+            ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addRow,
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         icon: const Icon(Icons.add),
-        label: const Text('Add row'),
+        label: const Text('Add row', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         maintainBottomViewPadding: true,
@@ -164,10 +242,24 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
           ),
           children: [
             if (rows.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 60),
                 child: Center(
-                  child: Text('No trip rows for this day yet.'),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.edit_road, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No trip rows for this day yet.',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ...List.generate(rows.length, _buildRowEditor),

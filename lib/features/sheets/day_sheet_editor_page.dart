@@ -67,6 +67,18 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       initialEntryMode: DatePickerEntryMode.calendarOnly,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.blue.shade600,
+              onPrimary: Colors.white,
+              onSurface: Colors.black87,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked == null) return;
@@ -124,64 +136,222 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
     Navigator.pop(context);
   }
 
+  // Helper for modern action cards
+  Widget _buildActionCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required Widget content,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: iconColor, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      content,
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Colors.grey.shade400),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('Edit day sheet'),
+        backgroundColor: Colors.grey.shade50,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'Edit day sheet',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        ),
         actions: [
-          TextButton(
-            onPressed: _save,
-            child: const Text('Save'),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: FilledButton.tonal(
+              onPressed: _save,
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Save'),
+            ),
           ),
         ],
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           children: [
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.calendar_today_outlined),
-                title: const Text('Date'),
-                subtitle: Text(sheet.date.isEmpty ? 'Select date' : sheet.date),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: _pickDate,
-              ),
-            ),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.badge_outlined),
-                title: const Text('Details'),
-                subtitle: Text(
-                  '${sheet.vehicleType} • ${sheet.fuelType}\n${sheet.carNumber} • ${sheet.driverName}',
-                ),
-                isThreeLine: true,
-              ),
-            ),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.route_outlined),
-                title: const Text('Trip rows'),
-                subtitle: Text(
-                  '${sheet.rows.length} rows • ${sheet.totalKm.toStringAsFixed(2)} km total',
+            // DATE CARD
+            _buildActionCard(
+              icon: Icons.calendar_month_rounded,
+              iconColor: Colors.blue.shade600,
+              title: 'DATE',
+              content: Text(
+                sheet.date.isEmpty ? 'Select date' : sheet.date,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
               ),
+              onTap: _pickDate,
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _openDetails,
-              icon: const Icon(Icons.edit_note),
-              label: const Text('Edit details'),
+
+            // DETAILS CARD
+            _buildActionCard(
+              icon: Icons.badge_rounded,
+              iconColor: Colors.purple.shade600,
+              title: 'GENERAL DETAILS',
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    sheet.driverName.isEmpty ? 'No driver set' : sheet.driverName,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      _buildSmallBadge(Icons.directions_car, sheet.carNumber),
+                      _buildSmallBadge(Icons.category, sheet.vehicleType),
+                      _buildSmallBadge(Icons.local_gas_station, sheet.fuelType),
+                    ],
+                  ),
+                ],
+              ),
+              onTap: _openDetails,
             ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _openRows,
-              icon: const Icon(Icons.route_outlined),
-              label: const Text('Edit trip rows'),
+
+            // TRIP ROWS CARD
+            _buildActionCard(
+              icon: Icons.edit_road_rounded,
+              iconColor: Colors.teal.shade600,
+              title: 'TRIP ROUTES',
+              content: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${sheet.rows.length} rows recorded',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tap to add or edit trips',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${sheet.totalKm.toStringAsFixed(1)} km',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal.shade800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              onTap: _openRows,
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSmallBadge(IconData icon, String text) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey.shade700),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+          ),
+        ],
       ),
     );
   }

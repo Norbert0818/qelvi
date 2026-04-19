@@ -26,7 +26,7 @@ class QelviApp extends StatelessWidget {
 
 class AppBootstrapper extends StatefulWidget {
   final TrackingService trackingService;
-  final Widget child; // Ez lesz a SheetsPage
+  final Widget child;
 
   const AppBootstrapper({
     Key? key,
@@ -42,22 +42,18 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
   @override
   void initState() {
     super.initState();
-    // Amint betölt a widget (az app indulásakor), kérjük az engedélyeket
     _requestPermissions();
   }
 
   Future<void> _requestPermissions() async {
-    // Itt meghívjuk a TrackingService-ben lévő javított ensurePermissions() metódust
     bool hasPermissions = await widget.trackingService.ensurePermissions();
     if (!hasPermissions) {
       print("Figyelem: Nem kaptunk meg minden szükséges engedélyt!");
-      // Később ide tehetsz egy SnackBar-t, ami szól a felhasználónak, hogy adjon engedélyt
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Vizuálisan nem adunk hozzá semmit, csak továbbadjuk a vezérlést a SheetsPage-nek
     return widget.child;
   }
 }

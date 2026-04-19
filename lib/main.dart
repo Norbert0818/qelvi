@@ -20,9 +20,7 @@ Future<void> interactiveCallback(Uri? uri) async {
   final trackingService = TrackingService(AddressService());
 
   if (uri.host == 'start') {
-    print("🚀 WIDGET: START gomb megnyomva!");
     try {
-      // --- EZT JAVÍTOTTUK: Megmondjuk neki, hogy a háttérből indul! ---
       await trackingService.startTrip(isBackground: true);
 
       await HomeWidget.saveWidgetData<String>('status_text', 'Tracking Started...');
@@ -63,8 +61,9 @@ void _initService() {
       visibility: NotificationVisibility.VISIBILITY_PUBLIC,
     ),
     iosNotificationOptions: const IOSNotificationOptions(
-      showNotification: true,
+      showNotification: false,
       playSound: false,
+
     ),
     foregroundTaskOptions: ForegroundTaskOptions(
       eventAction: ForegroundTaskEventAction.repeat(1000),

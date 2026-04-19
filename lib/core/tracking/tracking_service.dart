@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'foreground_task_handler.dart';
 import '../location/address_service.dart';
 
-// --- ÚJ IMPORTOK A MENTÉSHEZ ---
 import '../storage/prefs_service.dart';
 import '../../features/sheets/models/day_sheet.dart';
 import '../../features/sheets/models/trip_row.dart';
@@ -72,7 +71,7 @@ class TrackingStopResult {
 
 class TrackingService {
   final AddressService _addressService;
-  final PrefsService _prefsService = PrefsService(); // <-- PÉLDÁNYOSÍTJUK A MENTÉSHEZ
+  final PrefsService _prefsService = PrefsService();
 
   TrackingService(this._addressService);
 
@@ -80,40 +79,6 @@ class TrackingService {
   static const _startTimeKey = 'start_time';
   static const _distanceKmKey = 'distance_km';
   static const _totalDistanceLegacyKey = 'total_distance';
-
-  // Future<bool> ensurePermissions() async {
-  //   bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-  //   if (!serviceEnabled) {
-  //     await Geolocator.openLocationSettings();
-  //     serviceEnabled = await Geolocator.isLocationServiceEnabled();
-  //     if (!serviceEnabled) return false;
-  //   }
-  //
-  //   if (await Permission.notification.isDenied) {
-  //     await Permission.notification.request();
-  //   }
-  //
-  //   final whenInUse = await Permission.locationWhenInUse.request();
-  //   if (!whenInUse.isGranted) return false;
-  //
-  //   final always = await Permission.locationAlways.request();
-  //   if (!always.isGranted && Platform.isIOS) {
-  //     await openAppSettings();
-  //     return false;
-  //   }
-  //
-  //   LocationPermission permission = await Geolocator.checkPermission();
-  //   if (permission == LocationPermission.denied ||
-  //       permission == LocationPermission.deniedForever) {
-  //     permission = await Geolocator.requestPermission();
-  //     if (permission == LocationPermission.denied ||
-  //         permission == LocationPermission.deniedForever) {
-  //       return false;
-  //     }
-  //   }
-  //
-  //   return true;
-  // }
 
   Future<bool> ensurePermissions() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -152,9 +117,7 @@ class TrackingService {
     return FlutterForegroundTask.isRunningService;
   }
 
-  // Adtunk neki egy isBackground paramétert!
   Future<TrackingStartResult> startTrip({bool isBackground = false}) async {
-    // Ha a widgetről indítjuk (háttérből), NE próbáljunk meg engedély-kérő ablakokat feldobni, mert kifagy!
     if (!isBackground) {
       final ok = await ensurePermissions();
       if (!ok) {
@@ -167,16 +130,15 @@ class TrackingService {
       throw Exception('Tracking already started.');
     }
 
-    // Védjük le a GPS lekérést egy 5 másodperces időkorláttal, hogy a háttérben ne fagyjon le!
     Position? pos;
     try {
       pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
     } catch (e) {
-      // Ha nem talál jelet 5 mp alatt, kérje le az utolsó ismert pozíciót
       pos = await Geolocator.getLastKnownPosition();
     }
 
-    String startAddress = 'Ismeretlen hely';
+    // Changed to English
+    String startAddress = 'Unknown location';
     if (pos != null) {
       startAddress = await _addressService.resolveAddress(pos);
     }
@@ -221,7 +183,6 @@ class TrackingService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    // 1. KRITIKUS: Újratöltjük a memóriát, hogy megkapjuk a háttérben futó kilométereket!
     await prefs.reload();
 
     final savedStartTimeRaw = prefs.getString(_startTimeKey);
@@ -230,7 +191,6 @@ class TrackingService {
 
     await FlutterForegroundTask.stopService();
 
-    // 2. KRITIKUS: Védjük a GPS lekérést 5 másodperces időkorláttal!
     Position? pos;
     try {
       pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
@@ -238,7 +198,8 @@ class TrackingService {
       pos = await Geolocator.getLastKnownPosition();
     }
 
-    String endAddress = 'Ismeretlen hely';
+    // Changed to English
+    String endAddress = 'Unknown location';
     if (pos != null) {
       endAddress = await _addressService.resolveAddress(pos);
     }
@@ -249,11 +210,12 @@ class TrackingService {
 
     final todayStr = _formatDate(endTime);
 
-    final defaultVehicleType = prefs.getString('default_vehicle_type') ?? 'Persoane';
-    final defaultFuelType = prefs.getString('default_fuel_type') ?? 'Motorină';
-    final defaultCarNumber = prefs.getString('default_car_number') ?? 'Ismeretlen';
-    final defaultDriverName = prefs.getString('default_driver_name') ?? 'Sofőr';
-    final activeEventName = prefs.getString('active_event_name') ?? 'Qelvi';
+    // Default values changed to English
+    final defaultVehicleType = prefs.getString('default_vehicle_type') ?? '';
+    final defaultFuelType = prefs.getString('default_fuel_type') ?? '';
+    final defaultCarNumber = prefs.getString('default_car_number') ?? '';
+    final defaultDriverName = prefs.getString('default_driver_name') ?? '';
+    final activeEventName = prefs.getString('active_event_name') ?? '';
 
     List<DaySheet> allSheets = await _prefsService.loadDaySheets();
 
@@ -281,7 +243,6 @@ class TrackingService {
       allSheets.insert(0, activeSheet);
     }
 
-    // Új sor hozzáadása a megtalált/létrehozott táblázathoz
     activeSheet.rows.add(
       TripRow(
         departurePlace: savedStartAddress ?? '',

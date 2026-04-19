@@ -118,57 +118,124 @@ class _ArchivePageState extends State<ArchivePage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Archive (History)'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download),
-            tooltip: 'Export all archived sheets',
-            onPressed: _archivedSheets.isEmpty ? null : _exportArchive,
+  // Helper function to build small modern badges
+  Widget _buildBadge(IconData icon, String text, Color color) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.grey.shade50,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'Archive (History)',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_rounded),
+            tooltip: 'Export all archived sheets',
+            onPressed: _archivedSheets.isEmpty ? null : _exportArchive,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: _archivedSheets.isEmpty
-          ? const Center(child: Text('The archive is empty.'))
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              'The archive is empty.',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      )
           : ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         itemCount: _archivedSheets.length,
         itemBuilder: (context, index) {
           final sheet = _archivedSheets[index];
-          return Card(
-            color: Colors.grey.shade100, // Slightly gray to indicate it is archived
-            margin: const EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Top row: Event Badge + Date + Actions
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade100,
+                          color: Colors.orange.shade50,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           sheet.eventName.toUpperCase(),
-                          style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          sheet.date,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          sheet.date.isEmpty ? 'No date' : sheet.date,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       IconButton(
@@ -179,13 +246,70 @@ class _ArchivePageState extends State<ArchivePage> {
                       IconButton(
                         tooltip: 'Permanent Delete',
                         onPressed: () => _deleteSheet(sheet),
-                        icon: const Icon(Icons.delete_forever, color: Colors.red),
+                        icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text('${sheet.carNumber} • ${sheet.driverName}'),
-                  Text('Rows: ${sheet.rows.length} • Total: ${sheet.totalKm.toStringAsFixed(2)} km'),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(height: 1),
+                  ),
+                  // Content rows
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _buildBadge(Icons.directions_car, sheet.carNumber, Colors.indigo),
+                                _buildBadge(Icons.person, sheet.driverName, Colors.teal),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '${sheet.rows.length} trips recorded',
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Total KM box
+                      Expanded(
+                        flex: 1,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Total',
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${sheet.totalKm.toStringAsFixed(1)}',
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+                              ),
+                              Text(
+                                'km',
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
