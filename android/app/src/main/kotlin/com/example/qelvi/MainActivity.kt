@@ -1,4 +1,4 @@
-package com.example.qelvi
+package com.solyomnorbert.qelvi
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -8,6 +8,8 @@ import 'core/tracking/tracking_service.dart';
 
 import 'package:home_widget/home_widget.dart';
 
+import 'package:easy_localization/easy_localization.dart';
+
 @pragma("vm:entry-point")
 Future<void> interactiveCallback(Uri? uri) async {
   if (uri == null) return;
@@ -41,13 +43,26 @@ Future<void> interactiveCallback(Uri? uri) async {
 }
 
 Future<void> main() async {
+
   WidgetsFlutterBinding.ensureInitialized();
+  await EasyLocalization.ensureInitialized();
   await dotenv.load(fileName: '.env');
   FlutterForegroundTask.initCommunicationPort();
   HomeWidget.registerInteractivityCallback(interactiveCallback);
   final trackingService = TrackingService(AddressService());
   _initService();
-  runApp(QelviApp(trackingService: trackingService));
+  runApp(
+    EasyLocalization(
+      supportedLocales: const [
+        Locale('en'),
+        Locale('ro'),
+        Locale('hu')
+      ],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en'),
+      child: QelviApp(trackingService: trackingService),
+    ),
+  );
 }
 
 void _initService() {

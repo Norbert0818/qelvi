@@ -1,4 +1,4 @@
-package com.example.qelvi
+package com.solyomnorbert.qelvi
 
 import android.appwidget.AppWidgetManager
 import android.content.Context

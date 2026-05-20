@@ -137,7 +137,6 @@ class TrackingService {
       pos = await Geolocator.getLastKnownPosition();
     }
 
-    // Changed to English
     String startAddress = 'Unknown location';
     if (pos != null) {
       startAddress = await _addressService.resolveAddress(pos);
@@ -147,10 +146,7 @@ class TrackingService {
 
     final serviceResult = await FlutterForegroundTask.startService(
       notificationTitle: 'Qelvi is tracking',
-      notificationText: '0.00 km tracked',
-      notificationButtons: [
-        const NotificationButton(id: 'btn_stop', text: '🛑 STOP'),
-      ],
+      notificationText: '0 km tracked',
       callback: startCallback,
     );
 
@@ -187,7 +183,9 @@ class TrackingService {
 
     final savedStartTimeRaw = prefs.getString(_startTimeKey);
     final savedStartAddress = prefs.getString(_startAddressKey);
-    final savedDistanceKm = prefs.getDouble(_distanceKmKey) ?? 0.0;
+
+    // Biztosítjuk, hogy a lementett érték is szigorúan kerekített legyen!
+    final savedDistanceKm = (prefs.getDouble(_distanceKmKey) ?? 0.0).roundToDouble();
 
     await FlutterForegroundTask.stopService();
 
@@ -198,7 +196,6 @@ class TrackingService {
       pos = await Geolocator.getLastKnownPosition();
     }
 
-    // Changed to English
     String endAddress = 'Unknown location';
     if (pos != null) {
       endAddress = await _addressService.resolveAddress(pos);
@@ -210,7 +207,6 @@ class TrackingService {
 
     final todayStr = _formatDate(endTime);
 
-    // Default values changed to English
     final defaultVehicleType = prefs.getString('default_vehicle_type') ?? '';
     final defaultFuelType = prefs.getString('default_fuel_type') ?? '';
     final defaultCarNumber = prefs.getString('default_car_number') ?? '';
@@ -282,8 +278,9 @@ class TrackingService {
     final savedLegacyMeters = prefs.getDouble(_totalDistanceLegacyKey);
 
     double km = 0.0;
-    if (savedDistanceKm != null) km = savedDistanceKm;
-    if (savedLegacyMeters != null) km = savedLegacyMeters / 1000.0;
+    // Itt is kerekítünk visszatöltéskor
+    if (savedDistanceKm != null) km = savedDistanceKm.roundToDouble();
+    if (savedLegacyMeters != null) km = (savedLegacyMeters / 1000.0).roundToDouble();
 
     final running = await isRunning();
     final startTime =

@@ -58,13 +58,15 @@ class MyTaskHandler extends TaskHandler {
         if (speed > maxSpeedMps) return;
       }
 
-      _totalMeters += step;
+      _totalMeters += step; // A métereket továbbra is pontosan gyűjtjük!
     }
 
     _lastAccepted = pos;
     _lastAcceptedAt = now;
 
-    final km = _totalMeters / 1000.0;
+    // Itt történik a varázslat: a pontos értéket kerekítjük a legközelebbi egész számra
+    final km = (_totalMeters / 1000.0).roundToDouble();
+
     final elapsed = _startTime != null
         ? _formatDuration(now.difference(_startTime!))
         : '00:00:00';
@@ -85,17 +87,17 @@ class MyTaskHandler extends TaskHandler {
     if (_startTime == null) return;
 
     final now = DateTime.now();
-    final km = _totalMeters / 1000.0;
+
+    // Kerekítés a másodpercenkénti frissítésnél is
+    final km = (_totalMeters / 1000.0).roundToDouble();
     final elapsed = _formatDuration(now.difference(_startTime!));
 
-    final statusText = '${km.toStringAsFixed(2)} km – $elapsed';
+    // toInt() használata, hogy egész számként jelenjen meg (pl. "5 km" és nem "5.00 km")
+    final statusText = '${km.toInt()} km – $elapsed';
 
     FlutterForegroundTask.updateService(
       notificationTitle: 'Qelvi is tracking',
       notificationText: statusText,
-      notificationButtons: [
-        const NotificationButton(id: 'btn_stop', text: '🛑 STOP'),
-      ],
     );
 
     FlutterForegroundTask.sendDataToMain({

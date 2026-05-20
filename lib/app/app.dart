@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart'; // Ezt az importot adtuk hozzá
 import '../core/tracking/tracking_service.dart';
 import '../features/sheets/sheets_page.dart';
 
@@ -15,6 +16,11 @@ class QelviApp extends StatelessWidget {
     return MaterialApp(
       title: 'Qelvi',
       debugShowCheckedModeBanner: false,
+
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
+
       theme: ThemeData(
         colorSchemeSeed: Colors.blue,
         useMaterial3: true,

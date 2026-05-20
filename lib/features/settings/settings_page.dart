@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_model.dart';
 import '../sheets/archive_page.dart';
+import 'package:flutter/services.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class SettingsPage extends StatefulWidget {
   final SettingsModel settings;
@@ -25,9 +27,9 @@ class _SettingsPageState extends State<SettingsPage> {
   late String _selectedFuelType;
   late String _selectedVehicleType;
 
-  // Választható opciók a legördülő menühöz
-  final List<String> _fuelOptions = ['Motorină', 'Benzin', 'Electric', 'Hybrid'];
-  final List<String> _vehicleOptions = ['Persoane', 'Marfă', 'Special'];
+  final List<String> _fuelOptions = ['Diesel', 'Petrol', 'Electric', 'Hybrid'];
+
+  final List<String> _vehicleOptions = ['Passenger', 'Cargo'];
 
   @override
   void initState() {
@@ -36,14 +38,19 @@ class _SettingsPageState extends State<SettingsPage> {
     _carController = TextEditingController(text: widget.settings.defaultCarPlate);
     _eventController = TextEditingController(text: widget.settings.activeEventName);
 
-    // Biztosítjuk, hogy a meglévő beállítás szerepeljen a listában, ha nem, az első elemet kapja
-    _selectedFuelType = widget.settings.defaultFuelType.isEmpty || !_fuelOptions.contains(widget.settings.defaultFuelType)
-        ? _fuelOptions.first
-        : widget.settings.defaultFuelType;
+    if (widget.settings.defaultFuelType.isEmpty) {
+      _selectedFuelType = _fuelOptions.first;
+      _updatePref('default_fuel_type', _selectedFuelType);
+    } else {
+      _selectedFuelType = widget.settings.defaultFuelType;
+    }
 
-    _selectedVehicleType = widget.settings.defaultVehicleType.isEmpty || !_vehicleOptions.contains(widget.settings.defaultVehicleType)
-        ? _vehicleOptions.first
-        : widget.settings.defaultVehicleType;
+    if (widget.settings.defaultVehicleType.isEmpty) {
+      _selectedVehicleType = _vehicleOptions.first;
+      _updatePref('default_vehicle_type', _selectedVehicleType);
+    } else {
+      _selectedVehicleType = widget.settings.defaultVehicleType;
+    }
   }
 
   @override
@@ -54,10 +61,33 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(SettingsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settings.activeEventName != widget.settings.activeEventName) {
+      _eventController.text = widget.settings.activeEventName;
+    }
+  }
+
   Future<void> _updatePref(String key, String value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(key, value);
     widget.onSettingsChanged();
+  }
+
+  IconData _getVehicleIcon(String type) {
+    switch (type) {
+      case 'Passenger': return Icons.directions_car_rounded; // Személyautó
+      case 'Cargo': return Icons.local_shipping_rounded;     // Kamion
+      default: return Icons.directions_car_rounded;
+    }
+  }
+
+  IconData _getFuelIcon(String type) {
+    if (type == 'Electric' || type == 'Hybrid') {
+      return Icons.ev_station_rounded; // Elektromos töltő
+    }
+    return Icons.local_gas_station_rounded; // Hagyományos kút
   }
 
   // Modern input decoration helper
@@ -83,6 +113,25 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildLangButton(BuildContext context, String title, String langCode) {
+    final isActive = context.locale.languageCode == langCode;
+    return TextButton(
+      onPressed: () => context.setLocale(Locale(langCode)),
+      style: TextButton.styleFrom(
+        minimumSize: const Size(40, 40),
+        padding: EdgeInsets.zero,
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
+          color: isActive ? Colors.blue.shade700 : Colors.grey.shade400,
+          fontSize: 15,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,10 +139,17 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(
         backgroundColor: Colors.grey.shade50,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          'Settings',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
+        // Cím fordítással (később minden szöveget így kell átírni)
+        title: Text(
+          'settings_title'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
         ),
+        actions: [
+          _buildLangButton(context, 'EN', 'en'),
+          _buildLangButton(context, 'RO', 'ro'),
+          _buildLangButton(context, 'HU', 'hu'),
+          const SizedBox(width: 8),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -150,6 +206,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 TextField(
                   controller: _carController,
                   decoration: _modernInput('Car Plate Number', Icons.directions_car_rounded, Colors.indigo.shade500),
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    TextInputFormatter.withFunction((oldValue, newValue) => TextEditingValue(
+                      text: newValue.text.toUpperCase(),
+                      selection: newValue.selection,
+                    )),
+                  ],
                   onChanged: (v) => _updatePref('default_car_number', v.trim()),
                 ),
                 const SizedBox(height: 16),
@@ -157,14 +220,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 TextField(
                   controller: _driverController,
                   decoration: _modernInput('Driver Name', Icons.badge_rounded, Colors.teal.shade500),
+                  // Sofőr neve: Minden szó kezdőbetűje nagy
+                  textCapitalization: TextCapitalization.words,
                   onChanged: (v) => _updatePref('default_driver_name', v.trim()),
                 ),
-                const SizedBox(height: 16),
 
+                // Jármű típus Dropdown
                 // Jármű típus Dropdown
                 DropdownButtonFormField<String>(
                   value: _selectedVehicleType,
-                  decoration: _modernInput('Vehicle Type', Icons.local_shipping_rounded, Colors.brown.shade500),
+                  // Itt hívjuk meg a függvényt, hogy dinamikus legyen az ikon:
+                  decoration: _modernInput('Vehicle Type', _getVehicleIcon(_selectedVehicleType), Colors.brown.shade500),
                   items: _vehicleOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                   onChanged: (v) {
                     if (v != null) {
@@ -178,7 +244,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 // Üzemanyag típus Dropdown
                 DropdownButtonFormField<String>(
                   value: _selectedFuelType,
-                  decoration: _modernInput('Fuel Type', Icons.local_gas_station_rounded, Colors.orange.shade500),
+                  // Itt is dinamikus az ikon:
+                  decoration: _modernInput('Fuel Type', _getFuelIcon(_selectedFuelType), Colors.orange.shade500),
                   items: _fuelOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                   onChanged: (v) {
                     if (v != null) {

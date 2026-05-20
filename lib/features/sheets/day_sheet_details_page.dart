@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'models/day_sheet.dart';
+import 'package:flutter/services.dart';
 
 class DaySheetDetailsPage extends StatefulWidget {
   final DaySheet daySheet;
@@ -14,31 +15,40 @@ class DaySheetDetailsPage extends StatefulWidget {
 }
 
 class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
-  late TextEditingController vehicleTypeController;
-  late TextEditingController fuelTypeController;
+  // Szöveges controllerek a többi mezőhöz
   late TextEditingController carNumberController;
   late TextEditingController driverNameController;
   late TextEditingController eventNameController;
 
+  // Dropdown változók és opciók
+  late String _selectedFuelType;
+  late String _selectedVehicleType;
+
+  final List<String> _fuelOptions = ['Diesel', 'Petrol', 'Electric', 'Hybrid'];
+  final List<String> _vehicleOptions = ['Passenger', 'Cargo'];
+
   @override
   void initState() {
     super.initState();
-    vehicleTypeController =
-        TextEditingController(text: widget.daySheet.vehicleType);
-    fuelTypeController =
-        TextEditingController(text: widget.daySheet.fuelType);
-    carNumberController =
-        TextEditingController(text: widget.daySheet.carNumber);
-    driverNameController =
-        TextEditingController(text: widget.daySheet.driverName);
-    eventNameController =
-        TextEditingController(text: widget.daySheet.eventName);
+    carNumberController = TextEditingController(text: widget.daySheet.carNumber);
+    driverNameController = TextEditingController(text: widget.daySheet.driverName);
+    eventNameController = TextEditingController(text: widget.daySheet.eventName);
+
+    // Kezdeti járműtípus beállítása (ha üres vagy nem szerepel a listában, kap egy alapértelmezettet)
+    _selectedVehicleType = widget.daySheet.vehicleType;
+    if (!_vehicleOptions.contains(_selectedVehicleType)) {
+      _selectedVehicleType = _vehicleOptions.first;
+    }
+
+    // Kezdeti üzemanyag beállítása
+    _selectedFuelType = widget.daySheet.fuelType;
+    if (!_fuelOptions.contains(_selectedFuelType)) {
+      _selectedFuelType = _fuelOptions.first;
+    }
   }
 
   @override
   void dispose() {
-    vehicleTypeController.dispose();
-    fuelTypeController.dispose();
     carNumberController.dispose();
     driverNameController.dispose();
     eventNameController.dispose();
@@ -48,8 +58,9 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
   void _save() {
     final updated = DaySheet(
       id: widget.daySheet.id,
-      vehicleType: vehicleTypeController.text.trim(),
-      fuelType: fuelTypeController.text.trim(),
+      // Itt már a dropdownból választott értékeket mentjük el
+      vehicleType: _selectedVehicleType,
+      fuelType: _selectedFuelType,
       date: widget.daySheet.date,
       carNumber: carNumberController.text.trim(),
       driverName: driverNameController.text.trim(),
@@ -59,6 +70,21 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
     );
 
     Navigator.pop(context, updated);
+  }
+
+  IconData _getVehicleIcon(String type) {
+    switch (type) {
+      case 'Passenger': return Icons.directions_car_rounded; // Személyautó
+      case 'Cargo': return Icons.local_shipping_rounded;     // Kamion
+      default: return Icons.directions_car_rounded;
+    }
+  }
+
+  IconData _getFuelIcon(String type) {
+    if (type == 'Electric' || type == 'Hybrid') {
+      return Icons.ev_station_rounded; // Elektromos töltő
+    }
+    return Icons.local_gas_station_rounded; // Hagyományos kút
   }
 
   // Modern input decoration helper
@@ -160,22 +186,49 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   TextField(
                     controller: driverNameController,
                     decoration: _modernInput('Driver name', Icons.person, Colors.teal.shade500),
+                    textCapitalization: TextCapitalization.words,
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: carNumberController,
                     decoration: _modernInput('Car number', Icons.pin, Colors.indigo.shade500),
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [
+                      TextInputFormatter.withFunction((oldValue, newValue) => TextEditingValue(
+                        text: newValue.text.toUpperCase(),
+                        selection: newValue.selection,
+                      )),
+                    ],
                   ),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: vehicleTypeController,
-                    decoration: _modernInput('Vehicle type', Icons.directions_car, Colors.blue.shade500),
+
+                  // Jármű típus Dropdown (TextField helyett)
+                  DropdownButtonFormField<String>(
+                    value: _selectedVehicleType,
+                    // Itt hívjuk meg a függvényt, hogy dinamikus legyen az ikon:
+                    decoration: _modernInput('Vehicle Type', _getVehicleIcon(_selectedVehicleType), Colors.blue.shade500),
+                    items: _vehicleOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedVehicleType = v);
+                      }
+                    },
                   ),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: fuelTypeController,
-                    decoration: _modernInput('Fuel type', Icons.local_gas_station, Colors.orange.shade500),
+
+                  // Üzemanyag típus Dropdown
+                  DropdownButtonFormField<String>(
+                    value: _selectedFuelType,
+                    // Itt is dinamikus az ikon:
+                    decoration: _modernInput('Fuel Type', _getFuelIcon(_selectedFuelType), Colors.orange.shade500),
+                    items: _fuelOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedFuelType = v);
+                      }
+                    },
                   ),
+
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Divider(height: 1),
@@ -204,7 +257,26 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: eventNameController,
-                    decoration: _modernInput('Event name', Icons.celebration, Colors.purple.shade500),
+                    readOnly: true, // Letiltjuk a gépelést
+                    style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                    decoration: _modernInput('Event name (Change in Settings)', Icons.celebration, Colors.purple.shade400).copyWith(
+                      fillColor: Colors.grey.shade200, // Szürke háttér jelzi, hogy zárolva van
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none, // Nincs keret, mert nem szerkeszthető
+                      ),
+                    ),
+                    // Ha a felhasználó rákattint, adunk egy kis visszajelzést, hogy hol tudja megváltoztatni
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('To change the active event, please go to the Settings tab.'),
+                          behavior: SnackBarBehavior.floating,
+                          backgroundColor: Colors.purple.shade600,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

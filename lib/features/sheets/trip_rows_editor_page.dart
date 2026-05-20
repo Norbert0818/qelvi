@@ -86,6 +86,44 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
     );
   }
 
+  // --- ÚJ IDŐVÁLASZTÓ FÜGGVÉNY ---
+  Future<void> _pickTime(BuildContext context, TextEditingController controller, Function(String) onTimePicked) async {
+    // Megpróbáljuk a jelenleg beírt időt alapértelmezettként beállítani (ha már van valami beírva)
+    TimeOfDay initialTime = TimeOfDay.now();
+    if (controller.text.isNotEmpty && controller.text.contains(':')) {
+      final parts = controller.text.split(':');
+      if (parts.length == 2) {
+        final h = int.tryParse(parts[0]);
+        final m = int.tryParse(parts[1]);
+        if (h != null && m != null) {
+          initialTime = TimeOfDay(hour: h, minute: m);
+        }
+      }
+    }
+
+    // Megnyitjuk a Flutter beépített óráját
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (context, child) {
+        // Erőszakoljuk a 24 órás formátumot (ne AM/PM legyen)
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      // Formázzuk a kiválasztott időt HH:mm formátumra (pl. 08:05, 14:30)
+      final String formattedTime = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+
+      // Frissítjük a UI-t és a mögöttes adatmodellt is
+      controller.text = formattedTime;
+      onTimePicked(formattedTime);
+    }
+  }
+
   Widget _buildRowEditor(int index) {
     final row = rows[index];
 
@@ -158,10 +196,13 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
               onChanged: (value) => row.departurePlace = value,
             ),
             const SizedBox(height: 12),
+
+            // --- DEPARTURE TIME TÁRCSÁZÓ ---
             TextField(
               controller: departureTimeController,
               decoration: _modernInput('Departure time', Icons.access_time),
-              onChanged: (value) => row.departureTime = value,
+              readOnly: true, // Nem lehet beleírni
+              onTap: () => _pickTime(context, departureTimeController, (val) => row.departureTime = val),
             ),
             const SizedBox(height: 12),
 
@@ -172,10 +213,13 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
               onChanged: (value) => row.arrivalPlace = value,
             ),
             const SizedBox(height: 12),
+
+            // --- ARRIVAL TIME TÁRCSÁZÓ ---
             TextField(
               controller: arrivalTimeController,
               decoration: _modernInput('Arrival time', Icons.access_time_filled),
-              onChanged: (value) => row.arrivalTime = value,
+              readOnly: true, // Nem lehet beleírni
+              onTap: () => _pickTime(context, arrivalTimeController, (val) => row.arrivalTime = val),
             ),
             const SizedBox(height: 12),
 

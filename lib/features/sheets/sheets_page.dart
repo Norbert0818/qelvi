@@ -21,6 +21,21 @@ class SheetsPage extends StatefulWidget {
 }
 
 class _SheetsPageState extends State<SheetsPage> {
+
+  DateTime _parseSheetDate(String dateStr) {
+    try {
+      final parts = dateStr.split('.');
+      if (parts.length != 3) return DateTime(1970);
+      return DateTime(
+        int.parse(parts[2]),
+        int.parse(parts[1]),
+        int.parse(parts[0]),
+      );
+    } catch (e) {
+      return DateTime(1970);
+    }
+  }
+
   final _prefs = PrefsService();
 
   List<DaySheet> sheets = [];
@@ -57,6 +72,25 @@ class _SheetsPageState extends State<SheetsPage> {
     });
   }
 
+  List<String> get _availableEvents {
+    final events = sheets
+        .where((s) => !s.isArchived && s.eventName.isNotEmpty)
+        .map((s) => s.eventName)
+        .toSet()
+        .toList();
+
+    if (settings.activeEventName.isNotEmpty && !events.contains(settings.activeEventName)) {
+      events.add(settings.activeEventName);
+    }
+
+    if (events.isEmpty) {
+      events.add('Day sheets');
+    }
+
+    events.sort();
+    return events;
+  }
+
   @override
   void dispose() {
     FlutterForegroundTask.removeTaskDataCallback(_onTaskData);
@@ -67,17 +101,21 @@ class _SheetsPageState extends State<SheetsPage> {
     final loadedSheets = await _prefs.loadDaySheets();
     final prefs = await SharedPreferences.getInstance();
 
+    loadedSheets.sort((a, b) => _parseSheetDate(b.date).compareTo(_parseSheetDate(a.date)));
+
     if (mounted) {
       setState(() {
         sheets = loadedSheets;
+        String fuel = prefs.getString('default_fuel_type') ?? '';
+        String vehicle = prefs.getString('default_vehicle_type') ?? '';
         settings = SettingsModel(
           apiBaseUrl: Env.apiBaseUrl,
           apiKey: Env.apiKey,
           defaultDriverName: prefs.getString('default_driver_name') ?? '',
           defaultCarPlate: prefs.getString('default_car_number') ?? '',
           activeEventName: prefs.getString('active_event_name') ?? '',
-          defaultFuelType: prefs.getString('default_fuel_type') ?? '',
-          defaultVehicleType: prefs.getString('default_vehicle_type') ?? '',
+          defaultFuelType: fuel.isNotEmpty ? fuel : 'Diesel',
+          defaultVehicleType: vehicle.isNotEmpty ? vehicle : 'Passenger',
         );
         loading = false;
       });
@@ -191,8 +229,8 @@ class _SheetsPageState extends State<SheetsPage> {
       } else {
         targetSheet = DaySheet(
           id: DateTime.now().millisecondsSinceEpoch,
-          vehicleType: settings.defaultVehicleType,
-          fuelType: settings.defaultFuelType,
+          vehicleType: settings.defaultVehicleType.isNotEmpty ? settings.defaultVehicleType : 'Persons',
+          fuelType: settings.defaultFuelType.isNotEmpty ? settings.defaultFuelType : 'Diesel',
           date: todayStr,
           carNumber: settings.defaultCarPlate,
           driverName: settings.defaultDriverName,
@@ -212,10 +250,12 @@ class _SheetsPageState extends State<SheetsPage> {
             final indexById = sheets.indexWhere((e) => e.id == updated.id);
 
             if (indexById >= 0) {
-              sheets[indexById] = updated; // Csere ID alapján
+              sheets[indexById] = updated;
             } else {
-              sheets.insert(0, updated); // Új beszúrása
+              sheets.insert(0, updated);
             }
+
+            sheets.sort((a, b) => _parseSheetDate(b.date).compareTo(_parseSheetDate(a.date)));
 
             await _prefs.saveDaySheets(sheets);
           },
@@ -223,7 +263,6 @@ class _SheetsPageState extends State<SheetsPage> {
       ),
     );
 
-    // JAVÍTVA: Miután a szerkesztő bezárult, kényszerítjük a főoldal frissítését!
     await _loadData();
   }
 
@@ -232,12 +271,13 @@ class _SheetsPageState extends State<SheetsPage> {
     await _saveSheets();
   }
 
-  // JAVÍTVA: Biztosítjuk, hogy az állapot frissüljön és újratöltsön
   Future<void> _archiveCurrentEvent() async {
+    final currentEvent = settings.activeEventName;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Archive event: ${settings.activeEventName}?'),
+        title: Text('Archive event: $currentEvent?'),
         content: const Text(
           'All sheets belonging to this event will be hidden from the main screen, '
               'but they will be kept safely in the database.',
@@ -257,18 +297,37 @@ class _SheetsPageState extends State<SheetsPage> {
 
     if (confirm != true) return;
 
+    // 1. Archiváljuk a lapokat
     for (var sheet in sheets) {
-      if (sheet.eventName == settings.activeEventName) {
+      if (sheet.eventName == currentEvent) {
         sheet.isArchived = true;
       }
     }
-
     await _prefs.saveDaySheets(sheets);
-    await _loadData(); // JAVÍTVA: Azonnali újratöltés és UI frissítés!
+
+    // 2. Keresünk egy másik aktív eseményt (ha van, ami nem archivált)
+    final remainingEvents = sheets
+        .where((s) => !s.isArchived && s.eventName.isNotEmpty)
+        .map((s) => s.eventName)
+        .toSet()
+        .toList();
+
+    String nextEvent = '';
+    if (remainingEvents.isNotEmpty) {
+      remainingEvents.sort(); // Névsorba rendezzük
+      nextEvent = remainingEvents.first; // Kiválasztjuk az elsőt
+    }
+
+    // 3. Felülírjuk/Töröljük az aktív eseményt a memóriában (SharedPreferences)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('active_event_name', nextEvent);
+
+    // 4. Azonnali UI frissítés! Ettől fog eltűnni a lenyílóból és mindenünnen.
+    await _loadData();
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${settings.activeEventName} successfully archived!')),
+      SnackBar(content: Text('$currentEvent successfully archived!')),
     );
   }
 
@@ -542,14 +601,69 @@ class _SheetsPageState extends State<SheetsPage> {
                     'Active Event',
                     style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
                   ),
-                  Text(
-                    settings.activeEventName.isEmpty ? 'Day sheets' : settings.activeEventName,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-                    overflow: TextOverflow.ellipsis,
+
+                  // --- ÚJ: Kattintható Eseményválasztó ---
+                  PopupMenuButton<String>(
+                    color: Colors.white,
+                    surfaceTintColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    tooltip: 'Switch active event',
+                    // Amikor kiválaszt egy eseményt a listából:
+                    onSelected: (String newEvent) async {
+                      if (newEvent != settings.activeEventName) {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('active_event_name', newEvent);
+                        // Újratöltjük az adatokat, ami frissíti a Settings modellt és a UI-t is
+                        await _loadData();
+                      }
+                    },
+                    // A legördülő lista elemei:
+                    itemBuilder: (context) {
+                      return _availableEvents.map((eventName) {
+                        final isSelected = eventName == settings.activeEventName;
+                        return PopupMenuItem<String>(
+                          value: eventName,
+                          child: Row(
+                            children: [
+                              Icon(
+                                isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                                color: isSelected ? Colors.blue.shade600 : Colors.grey.shade400,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                eventName,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? Colors.blue.shade900 : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList();
+                    },
+                    // Maga a gomb (a cím, ami megjelenik a képernyőn):
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            settings.activeEventName.isEmpty ? 'Day sheets' : settings.activeEventName,
+                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.keyboard_arrow_down_rounded, color: Colors.blue.shade600, size: 28),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
+
+            // Itt marad a régi 3 pöttyös menü gombod az Add Manual és Archive gombokkal
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.black87),
               color: Colors.white,

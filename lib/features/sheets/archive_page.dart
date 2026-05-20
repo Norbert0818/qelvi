@@ -4,7 +4,7 @@ import '../../core/network/api_client.dart';
 import '../export/export_service.dart';
 import '../settings/settings_model.dart';
 import 'models/day_sheet.dart';
-import 'day_sheet_editor_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ArchivePage extends StatefulWidget {
   final SettingsModel settings;
@@ -22,7 +22,9 @@ class ArchivePage extends StatefulWidget {
 
 class _ArchivePageState extends State<ArchivePage> {
   final _prefs = PrefsService();
-  List<DaySheet> _archivedSheets = [];
+
+  // Mostantól nem egy ömlesztett lista, hanem Esemény neve alapján csoportosított Map (szótár)
+  Map<String, List<DaySheet>> _archivedEvents = {};
   bool _isLoading = true;
 
   @override
@@ -34,19 +36,26 @@ class _ArchivePageState extends State<ArchivePage> {
   Future<void> _loadArchivedData() async {
     final allSheets = await _prefs.loadDaySheets();
     setState(() {
-      // Filter only the archived sheets
-      _archivedSheets = allSheets.where((s) => s.isArchived).toList();
+      final archived = allSheets.where((s) => s.isArchived).toList();
+
+      _archivedEvents.clear();
+      // Csoportosítjuk a lapokat az eventName alapján
+      for (var sheet in archived) {
+        final key = sheet.eventName.isEmpty ? 'Unnamed Event' : sheet.eventName;
+        _archivedEvents.putIfAbsent(key, () => []).add(sheet);
+      }
+
       _isLoading = false;
     });
   }
 
-  // Delete sheet permanently from the archive
-  Future<void> _deleteSheet(DaySheet sheet) async {
+  // Teljes esemény (minden hozzá tartozó nap) végleges törlése
+  Future<void> _deleteEvent(String eventName, int sheetCount) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Permanent Delete?'),
-        content: const Text('This will permanently delete the sheet. This cannot be undone!'),
+        content: Text('This will permanently delete the event "$eventName" and its $sheetCount days. This cannot be undone!'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
@@ -61,32 +70,50 @@ class _ArchivePageState extends State<ArchivePage> {
     if (confirm != true) return;
 
     final allSheets = await _prefs.loadDaySheets();
-    allSheets.removeWhere((e) => e.id == sheet.id);
+    // Eltávolítunk minden lapot, ami ehhez az eseményhez tartozik és archiválva van
+    allSheets.removeWhere((e) => e.isArchived && (e.eventName == eventName || (eventName == 'Unnamed Event' && e.eventName.isEmpty)));
     await _prefs.saveDaySheets(allSheets);
 
-    widget.onDataChanged(); // Notify the main page that a change occurred
-    _loadArchivedData(); // Reload the archive list
+    widget.onDataChanged(); // Értesítjük a főoldalt
+    _loadArchivedData(); // Újratöltjük az archívumot
   }
 
-  // Unarchive sheet (Moves it back to the main active page)
-  Future<void> _unarchiveSheet(DaySheet sheet) async {
+  // Teljes esemény visszaállítása (Vissza a főoldalra)
+  // Teljes esemény visszaállítása
+  Future<void> _unarchiveEvent(String eventName) async {
     final allSheets = await _prefs.loadDaySheets();
-    final index = allSheets.indexWhere((e) => e.id == sheet.id);
-    if (index >= 0) {
-      allSheets[index].isArchived = false;
-      await _prefs.saveDaySheets(allSheets);
+    bool wasChanged = false;
 
-      widget.onDataChanged();
-      _loadArchivedData();
+    for (var sheet in allSheets) {
+      if (sheet.isArchived && (sheet.eventName == eventName || (eventName == 'Unnamed Event' && sheet.eventName.isEmpty))) {
+        sheet.isArchived = false;
+        wasChanged = true;
+      }
+    }
+
+    if (wasChanged) {
+      // --- ÚJ LOGIKA: Ha jelenleg nincs aktív esemény, azonnal beállítjuk ezt ---
+      final prefs = await SharedPreferences.getInstance();
+      final currentActive = prefs.getString('active_event_name') ?? '';
+      if (currentActive.isEmpty) {
+        await prefs.setString('active_event_name', eventName == 'Unnamed Event' ? '' : eventName);
+      }
+
+      await _prefs.saveDaySheets(allSheets);
+      widget.onDataChanged(); // Ettől frissül a főoldal a háttérben
+      _loadArchivedData(); // Frissíti a listát
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sheet restored to the ${sheet.eventName} event!')),
+        SnackBar(
+          content: Text('"$eventName" successfully restored!'),
+          backgroundColor: Colors.green.shade600,
+        ),
       );
     }
   }
 
-  // Export ONLY the archived sheets
+  // Exportáljuk az összes archivált lapot
   Future<void> _exportArchive() async {
     if (widget.settings.apiBaseUrl.isEmpty || widget.settings.apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -95,13 +122,16 @@ class _ArchivePageState extends State<ArchivePage> {
       return;
     }
 
-    if (_archivedSheets.isEmpty) return;
+    if (_archivedEvents.isEmpty) return;
 
     try {
       final apiClient = ApiClient(baseUrl: widget.settings.apiBaseUrl, apiKey: widget.settings.apiKey);
       final exportService = ExportService(apiClient: apiClient);
 
-      await exportService.downloadDaySheets(_archivedSheets);
+      // Kiterítjük a Map-et egy szimpla listává az exportáláshoz
+      final sheetsToExport = _archivedEvents.values.expand((list) => list).toList();
+
+      await exportService.downloadDaySheets(sheetsToExport);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,7 +148,7 @@ class _ArchivePageState extends State<ArchivePage> {
     }
   }
 
-  // Helper function to build small modern badges
+  // Modern badge helper
   Widget _buildBadge(IconData icon, String text, Color color) {
     if (text.isEmpty) return const SizedBox.shrink();
     return Container(
@@ -154,6 +184,8 @@ class _ArchivePageState extends State<ArchivePage> {
       );
     }
 
+    final eventNames = _archivedEvents.keys.toList();
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -167,12 +199,12 @@ class _ArchivePageState extends State<ArchivePage> {
           IconButton(
             icon: const Icon(Icons.download_rounded),
             tooltip: 'Export all archived sheets',
-            onPressed: _archivedSheets.isEmpty ? null : _exportArchive,
+            onPressed: _archivedEvents.isEmpty ? null : _exportArchive,
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: _archivedSheets.isEmpty
+      body: _archivedEvents.isEmpty
           ? Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -188,9 +220,15 @@ class _ArchivePageState extends State<ArchivePage> {
       )
           : ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        itemCount: _archivedSheets.length,
+        itemCount: eventNames.length,
         itemBuilder: (context, index) {
-          final sheet = _archivedSheets[index];
+          final eventName = eventNames[index];
+          final sheetsInEvent = _archivedEvents[eventName]!;
+
+          // Kiszámoljuk az összesített adatokat erre az Eseményre
+          final totalKm = sheetsInEvent.fold(0.0, (sum, sheet) => sum + sheet.totalKm);
+          final totalTrips = sheetsInEvent.fold(0, (sum, sheet) => sum + sheet.rows.length);
+
           return Container(
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
@@ -209,52 +247,45 @@ class _ArchivePageState extends State<ArchivePage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Top row: Event Badge + Date + Actions
+                  // Top row: Esemény neve és az Akciógombok
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          sheet.eventName.toUpperCase(),
-                          style: TextStyle(
-                            color: Colors.orange.shade800,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                        child: Icon(Icons.folder_special_rounded, color: Colors.orange.shade700, size: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          sheet.date.isEmpty ? 'No date' : sheet.date,
+                          eventName.toUpperCase(),
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Restore to main page',
-                        onPressed: () => _unarchiveSheet(sheet),
+                        tooltip: 'Restore entire event',
+                        onPressed: () => _unarchiveEvent(eventName),
                         icon: const Icon(Icons.unarchive_outlined, color: Colors.green),
                       ),
                       IconButton(
-                        tooltip: 'Permanent Delete',
-                        onPressed: () => _deleteSheet(sheet),
+                        tooltip: 'Permanent Delete event',
+                        onPressed: () => _deleteEvent(eventName, sheetsInEvent.length),
                         icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
                       ),
                     ],
                   ),
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
+                    padding: EdgeInsets.symmetric(vertical: 12),
                     child: Divider(height: 1),
                   ),
-                  // Content rows
+                  // Content rows: Összesítés
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -267,19 +298,14 @@ class _ArchivePageState extends State<ArchivePage> {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                _buildBadge(Icons.directions_car, sheet.carNumber, Colors.indigo),
-                                _buildBadge(Icons.person, sheet.driverName, Colors.teal),
+                                _buildBadge(Icons.calendar_month, '${sheetsInEvent.length} days recorded', Colors.blue),
+                                _buildBadge(Icons.route, '$totalTrips total trips', Colors.teal),
                               ],
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              '${sheet.rows.length} trips recorded',
-                              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                             ),
                           ],
                         ),
                       ),
-                      // Total KM box
+                      // Total KM box - Tizedesek nélkül (.toInt())
                       Expanded(
                         flex: 1,
                         child: Container(
@@ -297,8 +323,8 @@ class _ArchivePageState extends State<ArchivePage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${sheet.totalKm.toStringAsFixed(1)}',
-                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+                                '${totalKm.toInt()}', // <-- Kerek, egész szám
+                                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
                               ),
                               Text(
                                 'km',
