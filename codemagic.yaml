@@ -1,0 +1,40 @@
+workflows:
+  ios-testflight-workflow:
+    name: iOS Build & TestFlight
+    # M1-es Mac gépet kérünk a felhőben, mert sokkal gyorsabb a fordítás
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        # Ez hivatkozik a Codemagic felületén beállított Apple API kulcsodra
+        - appstore_credentials
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Set up keychain to be used for code signing
+        script: keychain initialize
+        
+      - name: Fetch signing files
+        # Itt történik a varázslat: a Codemagic letölti a certifikátokat az Apple-től
+        script: app-store-connect fetch-signing-files "com.solyomnorbert.qelvi" --type IOS_APP_STORE --create
+        
+      - name: Use system default keychain
+        script: keychain add-certificates
+        
+      - name: Set up code signing settings on Xcode project
+        script: xcode-project use-profiles
+        
+      - name: Get Flutter packages
+        script: flutter pub get
+        
+      - name: Build iOS App (.ipa)
+        script: flutter build ipa --release --export-options-plist=/Users/builder/export_options.plist
+        
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Automatikusan küldje be a TestFlight-ba
+        submit_to_testflight: true
