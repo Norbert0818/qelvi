@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:easy_localization/easy_localization.dart'; // Beimportálva a fordításhoz
 
 class AddressService {
   Future<String> resolveAddress(Position pos) async {
@@ -67,7 +68,8 @@ class AddressService {
         pos.longitude,
       );
 
-      if (placemarks.isEmpty) return 'Unknown location';
+      // Kicserélve lefordított szövegre
+      if (placemarks.isEmpty) return 'unknown_location'.tr();
 
       final placemark = placemarks.first;
 
@@ -92,9 +94,11 @@ class AddressService {
         return city;
       }
 
-      return 'Unknown location';
+      // Kicserélve lefordított szövegre
+      return 'unknown_location'.tr();
     } catch (_) {
-      return 'Unknown location';
+      // Kicserélve lefordított szövegre
+      return 'unknown_location'.tr();
     }
   }
 

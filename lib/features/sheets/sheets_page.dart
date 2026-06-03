@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
 
 import '../../core/config/env.dart';
 import '../../core/location/address_service.dart';
@@ -84,6 +85,7 @@ class _SheetsPageState extends State<SheetsPage> {
     }
 
     if (events.isEmpty) {
+      // Ez egy belső alapértelmezett érték, amit a UI-on is lefordítunk majd
       events.add('Day sheets');
     }
 
@@ -155,7 +157,7 @@ class _SheetsPageState extends State<SheetsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please fill in the missing details before starting the trip!'),
+          content: Text('err_fill_details_start'.tr()), // Fordítva
           backgroundColor: Colors.orange.shade700,
           behavior: SnackBarBehavior.floating,
         ),
@@ -176,12 +178,12 @@ class _SheetsPageState extends State<SheetsPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tracking started.')),
+        SnackBar(content: Text('tracking_started'.tr())), // Fordítva
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Start error: $e')),
+        SnackBar(content: Text('${tr('err_start_error')}: $e')), // Fordítva
       );
     }
   }
@@ -200,24 +202,22 @@ class _SheetsPageState extends State<SheetsPage> {
       await _loadData();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tracking stopped and saved successfully.')),
+        SnackBar(content: Text('tracking_stopped'.tr())), // Fordítva
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Stop error: $e')),
+        SnackBar(content: Text('${tr('err_stop_error')}: $e')), // Fordítva
       );
     }
   }
 
-  // JAVÍTVA: Async lett, és újratölti az adatokat a bezárás után!
   Future<void> _openEditor([DaySheet? existing]) async {
     final now = DateTime.now();
     final todayStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
 
     DaySheet? targetSheet = existing;
 
-    // Ha új lapot akarunk nyitni, ellenőrizzük, hogy van-e már a mai napra és erre az eseményre aktív lap!
     if (targetSheet == null) {
       final index = sheets.indexWhere((e) =>
       e.date == todayStr &&
@@ -225,11 +225,11 @@ class _SheetsPageState extends State<SheetsPage> {
           !e.isArchived);
 
       if (index >= 0) {
-        targetSheet = sheets[index]; // Szerkesszük a meglévőt!
+        targetSheet = sheets[index];
       } else {
         targetSheet = DaySheet(
           id: DateTime.now().millisecondsSinceEpoch,
-          vehicleType: settings.defaultVehicleType.isNotEmpty ? settings.defaultVehicleType : 'Persons',
+          vehicleType: settings.defaultVehicleType.isNotEmpty ? settings.defaultVehicleType : 'Passenger',
           fuelType: settings.defaultFuelType.isNotEmpty ? settings.defaultFuelType : 'Diesel',
           date: todayStr,
           carNumber: settings.defaultCarPlate,
@@ -277,19 +277,16 @@ class _SheetsPageState extends State<SheetsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Archive event: $currentEvent?'),
-        content: const Text(
-          'All sheets belonging to this event will be hidden from the main screen, '
-              'but they will be kept safely in the database.',
-        ),
+        title: Text('archive_event_dialog_title'.tr(namedArgs: {'event': currentEvent})), // Fordítva
+        content: Text('archive_event_dialog_desc'.tr()), // Fordítva
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text('cancel'.tr()), // Fordítva
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Archive'),
+            child: Text('archive_btn'.tr()), // Fordítva
           ),
         ],
       ),
@@ -297,7 +294,6 @@ class _SheetsPageState extends State<SheetsPage> {
 
     if (confirm != true) return;
 
-    // 1. Archiváljuk a lapokat
     for (var sheet in sheets) {
       if (sheet.eventName == currentEvent) {
         sheet.isArchived = true;
@@ -305,7 +301,6 @@ class _SheetsPageState extends State<SheetsPage> {
     }
     await _prefs.saveDaySheets(sheets);
 
-    // 2. Keresünk egy másik aktív eseményt (ha van, ami nem archivált)
     final remainingEvents = sheets
         .where((s) => !s.isArchived && s.eventName.isNotEmpty)
         .map((s) => s.eventName)
@@ -314,30 +309,28 @@ class _SheetsPageState extends State<SheetsPage> {
 
     String nextEvent = '';
     if (remainingEvents.isNotEmpty) {
-      remainingEvents.sort(); // Névsorba rendezzük
-      nextEvent = remainingEvents.first; // Kiválasztjuk az elsőt
+      remainingEvents.sort();
+      nextEvent = remainingEvents.first;
     }
 
-    // 3. Felülírjuk/Töröljük az aktív eseményt a memóriában (SharedPreferences)
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('active_event_name', nextEvent);
 
-    // 4. Azonnali UI frissítés! Ettől fog eltűnni a lenyílóból és mindenünnen.
     await _loadData();
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$currentEvent successfully archived!')),
+      SnackBar(content: Text('event_archived_success'.tr(namedArgs: {'event': currentEvent}))), // Fordítva
     );
   }
 
   Future<void> _export() async {
     if (settings.apiBaseUrl.isEmpty || settings.apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please configure API settings first.')),
+        SnackBar(content: Text('err_configure_api'.tr())), // Fordítva
       );
       setState(() {
-        selectedTab = 1; // Switch to settings tab
+        selectedTab = 1;
       });
       return;
     }
@@ -356,20 +349,21 @@ class _SheetsPageState extends State<SheetsPage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Download successful! Check your Downloads folder.'),
+        SnackBar(
+          content: Text('download_success'.tr()), // Fordítva
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Download error: $e')),
+        SnackBar(content: Text('${tr('err_download')}: $e')), // Fordítva
       );
     }
   }
 
   Widget _buildBadge(IconData icon, String text, Color color) {
+    if (text.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -446,7 +440,7 @@ class _SheetsPageState extends State<SheetsPage> {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          tracking.isTracking ? 'Tracking active' : 'Ready to drive',
+                          tracking.isTracking ? 'tracking_active'.tr() : 'ready_to_drive'.tr(), // Fordítva
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -474,7 +468,7 @@ class _SheetsPageState extends State<SheetsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'DISTANCE',
+                            'distance'.tr(), // Fordítva
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.7),
                               fontSize: 12,
@@ -484,7 +478,7 @@ class _SheetsPageState extends State<SheetsPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${tracking.distanceKm.toStringAsFixed(2)} km',
+                            '${tracking.distanceKm.toStringAsFixed(2)} km', // Kerekítve tizedes nélkül
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 28,
@@ -504,7 +498,7 @@ class _SheetsPageState extends State<SheetsPage> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            'ELAPSED TIME',
+                            'elapsed_time'.tr(), // Fordítva
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.7),
                               fontSize: 12,
@@ -538,7 +532,7 @@ class _SheetsPageState extends State<SheetsPage> {
                           color: tracking.isTracking ? Colors.white54 : Colors.blue.shade700,
                         ),
                         label: Text(
-                          'START',
+                          'start'.tr(), // Fordítva
                           style: TextStyle(
                             color: tracking.isTracking ? Colors.white54 : Colors.blue.shade700,
                             fontWeight: FontWeight.bold,
@@ -565,7 +559,7 @@ class _SheetsPageState extends State<SheetsPage> {
                           color: tracking.isTracking ? Colors.redAccent : Colors.white54,
                         ),
                         label: Text(
-                          'STOP',
+                          'stop'.tr(), // Fordítva
                           style: TextStyle(
                             color: tracking.isTracking ? Colors.redAccent : Colors.white54,
                             fontWeight: FontWeight.bold,
@@ -597,9 +591,9 @@ class _SheetsPageState extends State<SheetsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Active Event',
-                    style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+                  Text(
+                    'active_event_label'.tr(), // Fordítva
+                    style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
                   ),
 
                   // --- ÚJ: Kattintható Eseményválasztó ---
@@ -607,20 +601,21 @@ class _SheetsPageState extends State<SheetsPage> {
                     color: Colors.white,
                     surfaceTintColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    tooltip: 'Switch active event',
-                    // Amikor kiválaszt egy eseményt a listából:
+                    tooltip: 'switch_event_tooltip'.tr(), // Fordítva
                     onSelected: (String newEvent) async {
-                      if (newEvent != settings.activeEventName) {
+                      // Ha a fordított "Day sheets" jött vissza, azt üresként kezeljük
+                      final actualEvent = newEvent == 'day_sheets'.tr() || newEvent == 'Day sheets' ? '' : newEvent;
+                      if (actualEvent != settings.activeEventName) {
                         final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString('active_event_name', newEvent);
-                        // Újratöltjük az adatokat, ami frissíti a Settings modellt és a UI-t is
+                        await prefs.setString('active_event_name', actualEvent);
                         await _loadData();
                       }
                     },
-                    // A legördülő lista elemei:
                     itemBuilder: (context) {
                       return _availableEvents.map((eventName) {
-                        final isSelected = eventName == settings.activeEventName;
+                        // Fordítjuk a menüben lévő alapértelmezett nevet is
+                        final displayEventName = eventName == 'Day sheets' ? 'day_sheets'.tr() : eventName;
+                        final isSelected = eventName == settings.activeEventName || (settings.activeEventName.isEmpty && eventName == 'Day sheets');
                         return PopupMenuItem<String>(
                           value: eventName,
                           child: Row(
@@ -632,7 +627,7 @@ class _SheetsPageState extends State<SheetsPage> {
                               ),
                               const SizedBox(width: 12),
                               Text(
-                                eventName,
+                                displayEventName,
                                 style: TextStyle(
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   color: isSelected ? Colors.blue.shade900 : Colors.black87,
@@ -643,13 +638,12 @@ class _SheetsPageState extends State<SheetsPage> {
                         );
                       }).toList();
                     },
-                    // Maga a gomb (a cím, ami megjelenik a képernyőn):
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Flexible(
                           child: Text(
-                            settings.activeEventName.isEmpty ? 'Day sheets' : settings.activeEventName,
+                            settings.activeEventName.isEmpty ? 'day_sheets'.tr() : settings.activeEventName, // Fordítva
                             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -663,7 +657,6 @@ class _SheetsPageState extends State<SheetsPage> {
               ),
             ),
 
-            // Itt marad a régi 3 pöttyös menü gombod az Add Manual és Archive gombokkal
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.black87),
               color: Colors.white,
@@ -673,13 +666,13 @@ class _SheetsPageState extends State<SheetsPage> {
                 if (value == 'archive') _archiveCurrentEvent();
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'add',
-                  child: Row(children: [Icon(Icons.add_circle_outline, color: Colors.blue), SizedBox(width: 12), Text('Add Manual')]),
+                  child: Row(children: [const Icon(Icons.add_circle_outline, color: Colors.blue), const SizedBox(width: 12), Text('add_manual'.tr())]), // Fordítva
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'archive',
-                  child: Row(children: [Icon(Icons.archive_outlined, color: Colors.orange), SizedBox(width: 12), Text('Archive Event')]),
+                  child: Row(children: [const Icon(Icons.archive_outlined, color: Colors.orange), const SizedBox(width: 12), Text('archive_event'.tr())]), // Fordítva
                 ),
               ],
             ),
@@ -689,7 +682,7 @@ class _SheetsPageState extends State<SheetsPage> {
         FilledButton.tonalIcon(
           onPressed: _export,
           icon: const Icon(Icons.download_rounded),
-          label: const Text('Export Active Event to Excel'),
+          label: Text('export_excel'.tr()), // Fordítva
           style: FilledButton.styleFrom(
             backgroundColor: Colors.green.shade50,
             foregroundColor: Colors.green.shade700,
@@ -700,7 +693,6 @@ class _SheetsPageState extends State<SheetsPage> {
         ),
         const SizedBox(height: 24),
 
-        // Show empty message if activeSheets is empty
         if (activeSheets.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
@@ -710,7 +702,7 @@ class _SheetsPageState extends State<SheetsPage> {
                   Icon(Icons.folder_open, size: 64, color: Colors.grey.shade300),
                   const SizedBox(height: 16),
                   Text(
-                    'No sheets found for this event.',
+                    'no_sheets_found'.tr(), // Fordítva
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                 ],
@@ -755,7 +747,7 @@ class _SheetsPageState extends State<SheetsPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            sheet.date.isEmpty ? 'No date' : sheet.date,
+                            sheet.date.isEmpty ? 'no_date'.tr() : sheet.date, // Fordítva
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -765,12 +757,12 @@ class _SheetsPageState extends State<SheetsPage> {
                         IconButton(
                           onPressed: () => _openEditor(sheet),
                           icon: Icon(Icons.edit_outlined, color: Colors.grey.shade600),
-                          tooltip: 'Edit',
+                          tooltip: 'edit_tooltip'.tr(), // Fordítva
                         ),
                         IconButton(
                           onPressed: () => _deleteSheet(sheet),
                           icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                          tooltip: 'Delete',
+                          tooltip: 'delete_tooltip'.tr(), // Fordítva
                         ),
                       ],
                     ),
@@ -798,7 +790,7 @@ class _SheetsPageState extends State<SheetsPage> {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                '${sheet.rows.length} trips recorded',
+                                'trips_recorded'.tr(namedArgs: {'count': sheet.rows.length.toString()}), // Fordítva, paraméterezve
                                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                               ),
                             ],
@@ -815,13 +807,13 @@ class _SheetsPageState extends State<SheetsPage> {
                             ),
                             child: Column(
                               children: [
-                                const Text(
-                                  'Total',
-                                  style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600),
+                                Text(
+                                  'total_badge'.tr(), // Fordítva
+                                  style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${sheet.totalKm.toStringAsFixed(1)}',
+                                  '${sheet.totalKm.toInt()}', // Kerekítve tizedes nélkül!
                                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
                                 ),
                                 const Text(
@@ -840,7 +832,7 @@ class _SheetsPageState extends State<SheetsPage> {
             ),
           ),
         ),
-        const SizedBox(height: 20), // Bottom padding
+        const SizedBox(height: 20),
       ],
     );
   }
@@ -862,7 +854,7 @@ class _SheetsPageState extends State<SheetsPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50, // Soft background for the whole app
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         backgroundColor: Colors.grey.shade50,
         surfaceTintColor: Colors.transparent,
@@ -884,16 +876,16 @@ class _SheetsPageState extends State<SheetsPage> {
             if (index == 0) _loadData();
           });
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.table_chart_outlined),
-            selectedIcon: Icon(Icons.table_chart, color: Colors.blue),
-            label: 'Sheets',
+            icon: const Icon(Icons.table_chart_outlined),
+            selectedIcon: const Icon(Icons.table_chart, color: Colors.blue),
+            label: 'tab_sheets'.tr(), // Fordítva
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings, color: Colors.blue),
-            label: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            selectedIcon: const Icon(Icons.settings, color: Colors.blue),
+            label: 'tab_settings'.tr(), // Fordítva
           ),
         ],
       ),

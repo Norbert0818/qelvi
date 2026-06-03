@@ -3,6 +3,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 @pragma('vm:entry-point')
 void startCallback() {
@@ -58,14 +59,14 @@ class MyTaskHandler extends TaskHandler {
         if (speed > maxSpeedMps) return;
       }
 
-      _totalMeters += step; // A métereket továbbra is pontosan gyűjtjük!
+      _totalMeters += step;
     }
 
     _lastAccepted = pos;
     _lastAcceptedAt = now;
 
-    // Itt történik a varázslat: a pontos értéket kerekítjük a legközelebbi egész számra
-    final km = (_totalMeters / 1000.0).roundToDouble();
+    // --- ÉLŐ MÉRÉS: Nincs kerekítés, pontos érték megy a telefonnak ---
+    final km = _totalMeters / 1000.0;
 
     final elapsed = _startTime != null
         ? _formatDuration(now.difference(_startTime!))
@@ -88,15 +89,15 @@ class MyTaskHandler extends TaskHandler {
 
     final now = DateTime.now();
 
-    // Kerekítés a másodpercenkénti frissítésnél is
-    final km = (_totalMeters / 1000.0).roundToDouble();
+    // --- ÉLŐ MÉRÉS: Nincs kerekítés ---
+    final km = _totalMeters / 1000.0;
     final elapsed = _formatDuration(now.difference(_startTime!));
 
-    // toInt() használata, hogy egész számként jelenjen meg (pl. "5 km" és nem "5.00 km")
-    final statusText = '${km.toInt()} km – $elapsed';
+    // --- ÉLŐ MÉRÉS: 2 tizedesjegy az értesítésben (.toStringAsFixed(2)) ---
+    final statusText = '${km.toStringAsFixed(2)} km – $elapsed';
 
     FlutterForegroundTask.updateService(
-      notificationTitle: 'Qelvi is tracking',
+      notificationTitle: tr('tracking_active'),
       notificationText: statusText,
     );
 

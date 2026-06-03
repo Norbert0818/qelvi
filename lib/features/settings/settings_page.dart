@@ -77,20 +77,19 @@ class _SettingsPageState extends State<SettingsPage> {
 
   IconData _getVehicleIcon(String type) {
     switch (type) {
-      case 'Passenger': return Icons.directions_car_rounded; // Személyautó
-      case 'Cargo': return Icons.local_shipping_rounded;     // Kamion
+      case 'Passenger': return Icons.directions_car_rounded;
+      case 'Cargo': return Icons.local_shipping_rounded;
       default: return Icons.directions_car_rounded;
     }
   }
 
   IconData _getFuelIcon(String type) {
     if (type == 'Electric' || type == 'Hybrid') {
-      return Icons.ev_station_rounded; // Elektromos töltő
+      return Icons.ev_station_rounded;
     }
-    return Icons.local_gas_station_rounded; // Hagyományos kút
+    return Icons.local_gas_station_rounded;
   }
 
-  // Modern input decoration helper
   InputDecoration _modernInput(String label, IconData icon, Color iconColor) {
     return InputDecoration(
       labelText: label,
@@ -116,7 +115,11 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildLangButton(BuildContext context, String title, String langCode) {
     final isActive = context.locale.languageCode == langCode;
     return TextButton(
-      onPressed: () => context.setLocale(Locale(langCode)),
+      // --- JAVÍTÁS 1: Azonnali frissítés a főoldalon! ---
+      onPressed: () async {
+        await context.setLocale(Locale(langCode));
+        widget.onSettingsChanged(); // Ezzel szólunk a SheetsPage-nek, hogy rajzolja újra az alsó menüt is!
+      },
       style: TextButton.styleFrom(
         minimumSize: const Size(40, 40),
         padding: EdgeInsets.zero,
@@ -139,7 +142,6 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(
         backgroundColor: Colors.grey.shade50,
         surfaceTintColor: Colors.transparent,
-        // Cím fordítással (később minden szöveget így kell átírni)
         title: Text(
           'settings_title'.tr(),
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
@@ -183,29 +185,29 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: Icon(Icons.tune_rounded, color: Colors.blue.shade700, size: 22),
                     ),
                     const SizedBox(width: 12),
-                    const Text(
-                      'Trip Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    Text(
+                      'trip_details'.tr(),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'These details are required before you can start tracking.',
+                  'trip_details_desc'.tr(),
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 13, height: 1.4),
                 ),
                 const SizedBox(height: 24),
 
                 TextField(
                   controller: _eventController,
-                  decoration: _modernInput('Active Event Name', Icons.event_available_rounded, Colors.purple.shade500),
+                  decoration: _modernInput('active_event'.tr(), Icons.event_available_rounded, Colors.purple.shade500),
                   onChanged: (v) => _updatePref('active_event_name', v.trim()),
                 ),
                 const SizedBox(height: 16),
 
                 TextField(
                   controller: _carController,
-                  decoration: _modernInput('Car Plate Number', Icons.directions_car_rounded, Colors.indigo.shade500),
+                  decoration: _modernInput('car_plate'.tr(), Icons.directions_car_rounded, Colors.indigo.shade500),
                   textCapitalization: TextCapitalization.characters,
                   inputFormatters: [
                     TextInputFormatter.withFunction((oldValue, newValue) => TextEditingValue(
@@ -219,19 +221,21 @@ class _SettingsPageState extends State<SettingsPage> {
 
                 TextField(
                   controller: _driverController,
-                  decoration: _modernInput('Driver Name', Icons.badge_rounded, Colors.teal.shade500),
-                  // Sofőr neve: Minden szó kezdőbetűje nagy
+                  decoration: _modernInput('driver_name'.tr(), Icons.badge_rounded, Colors.teal.shade500),
                   textCapitalization: TextCapitalization.words,
                   onChanged: (v) => _updatePref('default_driver_name', v.trim()),
                 ),
+                const SizedBox(height: 16),
 
-                // Jármű típus Dropdown
-                // Jármű típus Dropdown
+                // --- JAVÍTÁS 2: Jármű típus Dropdown UI fordítása ---
                 DropdownButtonFormField<String>(
                   value: _selectedVehicleType,
-                  // Itt hívjuk meg a függvényt, hogy dinamikus legyen az ikon:
-                  decoration: _modernInput('Vehicle Type', _getVehicleIcon(_selectedVehicleType), Colors.brown.shade500),
-                  items: _vehicleOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  decoration: _modernInput('vehicle_type'.tr(), _getVehicleIcon(_selectedVehicleType), Colors.brown.shade500),
+                  items: _vehicleOptions.map((e) => DropdownMenuItem(
+                      value: e,
+                      // Itt csak a MEGJELENÉST fordítjuk, a mentett érték (value) marad az eredeti!
+                      child: Text(e.toLowerCase().tr())
+                  )).toList(),
                   onChanged: (v) {
                     if (v != null) {
                       setState(() => _selectedVehicleType = v);
@@ -241,12 +245,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Üzemanyag típus Dropdown
+                // --- JAVÍTÁS 3: Üzemanyag típus Dropdown UI fordítása ---
                 DropdownButtonFormField<String>(
                   value: _selectedFuelType,
-                  // Itt is dinamikus az ikon:
-                  decoration: _modernInput('Fuel Type', _getFuelIcon(_selectedFuelType), Colors.orange.shade500),
-                  items: _fuelOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  decoration: _modernInput('fuel_type'.tr(), _getFuelIcon(_selectedFuelType), Colors.orange.shade500),
+                  items: _fuelOptions.map((e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(e.toLowerCase().tr()) // Szintén itt
+                  )).toList(),
                   onChanged: (v) {
                     if (v != null) {
                       setState(() => _selectedFuelType = v);
@@ -302,22 +308,22 @@ class _SettingsPageState extends State<SettingsPage> {
                         child: Icon(Icons.history_rounded, color: Colors.orange.shade600, size: 24),
                       ),
                       const SizedBox(width: 16),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Open Archive',
-                              style: TextStyle(
+                              'open_archive'.tr(),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
-                              'View and manage your history',
-                              style: TextStyle(
+                              'view_history'.tr(),
+                              style: const TextStyle(
                                 fontSize: 13,
                                 color: Colors.grey,
                               ),

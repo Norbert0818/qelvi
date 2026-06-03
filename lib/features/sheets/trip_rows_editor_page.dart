@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'models/day_sheet.dart';
 import 'models/trip_row.dart';
+import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
 
 class TripRowsEditorPage extends StatefulWidget {
   final DaySheet daySheet;
@@ -88,7 +89,6 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
 
   // --- ÚJ IDŐVÁLASZTÓ FÜGGVÉNY ---
   Future<void> _pickTime(BuildContext context, TextEditingController controller, Function(String) onTimePicked) async {
-    // Megpróbáljuk a jelenleg beírt időt alapértelmezettként beállítani (ha már van valami beírva)
     TimeOfDay initialTime = TimeOfDay.now();
     if (controller.text.isNotEmpty && controller.text.contains(':')) {
       final parts = controller.text.split(':');
@@ -101,12 +101,10 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
       }
     }
 
-    // Megnyitjuk a Flutter beépített óráját
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: initialTime,
       builder: (context, child) {
-        // Erőszakoljuk a 24 órás formátumot (ne AM/PM legyen)
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
           child: child!,
@@ -115,10 +113,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
     );
 
     if (picked != null) {
-      // Formázzuk a kiválasztott időt HH:mm formátumra (pl. 08:05, 14:30)
       final String formattedTime = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
-
-      // Frissítjük a UI-t és a mögöttes adatmodellt is
       controller.text = formattedTime;
       onTimePicked(formattedTime);
     }
@@ -168,7 +163,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Trip #${index + 1}',
+                      'trip_number'.tr(namedArgs: {'number': (index + 1).toString()}), // Fordítva
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -183,7 +178,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
                     });
                   },
                   icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                  tooltip: 'Delete row',
+                  tooltip: 'delete_row_tooltip'.tr(), // Fordítva
                 ),
               ],
             ),
@@ -192,16 +187,16 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
             // Departure Info
             TextField(
               controller: departurePlaceController,
-              decoration: _modernInput('Departure place', Icons.my_location),
+              decoration: _modernInput('departure_place'.tr(), Icons.my_location), // Fordítva
               onChanged: (value) => row.departurePlace = value,
             ),
             const SizedBox(height: 12),
 
-            // --- DEPARTURE TIME TÁRCSÁZÓ ---
+            // Departure Time
             TextField(
               controller: departureTimeController,
-              decoration: _modernInput('Departure time', Icons.access_time),
-              readOnly: true, // Nem lehet beleírni
+              decoration: _modernInput('departure_time'.tr(), Icons.access_time), // Fordítva
+              readOnly: true,
               onTap: () => _pickTime(context, departureTimeController, (val) => row.departureTime = val),
             ),
             const SizedBox(height: 12),
@@ -209,16 +204,16 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
             // Arrival Info
             TextField(
               controller: arrivalPlaceController,
-              decoration: _modernInput('Arrival place', Icons.location_on),
+              decoration: _modernInput('arrival_place'.tr(), Icons.location_on), // Fordítva
               onChanged: (value) => row.arrivalPlace = value,
             ),
             const SizedBox(height: 12),
 
-            // --- ARRIVAL TIME TÁRCSÁZÓ ---
+            // Arrival Time
             TextField(
               controller: arrivalTimeController,
-              decoration: _modernInput('Arrival time', Icons.access_time_filled),
-              readOnly: true, // Nem lehet beleírni
+              decoration: _modernInput('arrival_time'.tr(), Icons.access_time_filled), // Fordítva
+              readOnly: true,
               onTap: () => _pickTime(context, arrivalTimeController, (val) => row.arrivalTime = val),
             ),
             const SizedBox(height: 12),
@@ -226,7 +221,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
             // KM Info
             TextField(
               controller: kmController,
-              decoration: _modernInput('KM', Icons.directions_car),
+              decoration: _modernInput('km_label'.tr(), Icons.directions_car), // Fordítva
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               onChanged: (value) {
                 row.km = double.tryParse(value.replaceAll(',', '.')) ?? 0;
@@ -250,7 +245,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
         backgroundColor: Colors.grey.shade50,
         surfaceTintColor: Colors.transparent,
         title: Text(
-          'Trip rows - ${widget.daySheet.date}',
+          'trip_rows_title'.tr(namedArgs: {'date': widget.daySheet.date}), // Fordítva
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         actions: [
@@ -263,7 +258,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Save'),
+              child: Text('save'.tr()), // Fordítva
             ),
           ),
         ],
@@ -273,7 +268,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         icon: const Icon(Icons.add),
-        label: const Text('Add row', style: TextStyle(fontWeight: FontWeight.bold)),
+        label: Text('add_row'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)), // Fordítva
       ),
       body: SafeArea(
         maintainBottomViewPadding: true,
@@ -295,7 +290,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
                       Icon(Icons.edit_road, size: 64, color: Colors.grey.shade300),
                       const SizedBox(height: 16),
                       Text(
-                        'No trip rows for this day yet.',
+                        'no_trip_rows_yet'.tr(), // Fordítva
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 16,

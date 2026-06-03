@@ -5,6 +5,7 @@ import '../export/export_service.dart';
 import '../settings/settings_model.dart';
 import 'models/day_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
 
 class ArchivePage extends StatefulWidget {
   final SettingsModel settings;
@@ -54,14 +55,17 @@ class _ArchivePageState extends State<ArchivePage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Permanent Delete?'),
-        content: Text('This will permanently delete the event "$eventName" and its $sheetCount days. This cannot be undone!'),
+        title: Text('archive_delete_title'.tr()),
+        content: Text('archive_delete_desc'.tr(namedArgs: {
+          'event': eventName,
+          'count': sheetCount.toString(),
+        })),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('cancel'.tr())),
           FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete')
+              child: Text('delete_btn'.tr())
           ),
         ],
       ),
@@ -79,7 +83,6 @@ class _ArchivePageState extends State<ArchivePage> {
   }
 
   // Teljes esemény visszaállítása (Vissza a főoldalra)
-  // Teljes esemény visszaállítása
   Future<void> _unarchiveEvent(String eventName) async {
     final allSheets = await _prefs.loadDaySheets();
     bool wasChanged = false;
@@ -106,7 +109,7 @@ class _ArchivePageState extends State<ArchivePage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('"$eventName" successfully restored!'),
+          content: Text('archive_restore_success'.tr(namedArgs: {'event': eventName})),
           backgroundColor: Colors.green.shade600,
         ),
       );
@@ -117,7 +120,7 @@ class _ArchivePageState extends State<ArchivePage> {
   Future<void> _exportArchive() async {
     if (widget.settings.apiBaseUrl.isEmpty || widget.settings.apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please configure API settings first.')),
+        SnackBar(content: Text('err_configure_api'.tr())),
       );
       return;
     }
@@ -135,15 +138,15 @@ class _ArchivePageState extends State<ArchivePage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Archive downloaded! Check your Downloads folder.'),
+        SnackBar(
+          content: Text('archive_download_success'.tr()),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('${tr('err_server_error')}: $e')),
       );
     }
   }
@@ -191,14 +194,14 @@ class _ArchivePageState extends State<ArchivePage> {
       appBar: AppBar(
         backgroundColor: Colors.grey.shade50,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          'Archive (History)',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        title: Text(
+          'archive_title'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.download_rounded),
-            tooltip: 'Export all archived sheets',
+            tooltip: 'export_archive_tooltip'.tr(),
             onPressed: _archivedEvents.isEmpty ? null : _exportArchive,
           ),
           const SizedBox(width: 8),
@@ -212,7 +215,7 @@ class _ArchivePageState extends State<ArchivePage> {
             Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade300),
             const SizedBox(height: 16),
             Text(
-              'The archive is empty.',
+              'archive_empty'.tr(),
               style: TextStyle(color: Colors.grey.shade600, fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ],
@@ -270,12 +273,12 @@ class _ArchivePageState extends State<ArchivePage> {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Restore entire event',
+                        tooltip: 'restore_event_tooltip'.tr(),
                         onPressed: () => _unarchiveEvent(eventName),
                         icon: const Icon(Icons.unarchive_outlined, color: Colors.green),
                       ),
                       IconButton(
-                        tooltip: 'Permanent Delete event',
+                        tooltip: 'delete_event_tooltip'.tr(),
                         onPressed: () => _deleteEvent(eventName, sheetsInEvent.length),
                         icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
                       ),
@@ -298,8 +301,8 @@ class _ArchivePageState extends State<ArchivePage> {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                _buildBadge(Icons.calendar_month, '${sheetsInEvent.length} days recorded', Colors.blue),
-                                _buildBadge(Icons.route, '$totalTrips total trips', Colors.teal),
+                                _buildBadge(Icons.calendar_month, 'days_count_badge'.tr(namedArgs: {'count': sheetsInEvent.length.toString()}), Colors.blue),
+                                _buildBadge(Icons.route, 'trips_count_badge'.tr(namedArgs: {'count': totalTrips.toString()}), Colors.teal),
                               ],
                             ),
                           ],
@@ -318,7 +321,7 @@ class _ArchivePageState extends State<ArchivePage> {
                           child: Column(
                             children: [
                               Text(
-                                'Total',
+                                'total_badge'.tr(),
                                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
                               ),
                               const SizedBox(height: 4),

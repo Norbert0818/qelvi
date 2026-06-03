@@ -54,7 +54,7 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
   Future<void> _requestPermissions() async {
     bool hasPermissions = await widget.trackingService.ensurePermissions();
     if (!hasPermissions) {
-      print("Figyelem: Nem kaptunk meg minden szükséges engedélyt!");
+      print("permission_warning".tr());
     }
   }
 

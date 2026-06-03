@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'models/day_sheet.dart';
 import 'package:flutter/services.dart';
+import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
 
 class DaySheetDetailsPage extends StatefulWidget {
   final DaySheet daySheet;
@@ -121,9 +122,9 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
       appBar: AppBar(
         backgroundColor: Colors.grey.shade50,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          'Edit details',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        title: Text(
+          'edit_details'.tr(), // Fordítás bekötve
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         actions: [
           Padding(
@@ -135,7 +136,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Save'),
+              child: Text('save'.tr()), // Fordítás bekötve
             ),
           ),
         ],
@@ -172,9 +173,9 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                         child: Icon(Icons.info_outline, size: 20, color: Colors.blue.shade700),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'General Information',
-                        style: TextStyle(
+                      Text(
+                        'general_info'.tr(), // Fordítás bekötve
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
@@ -185,13 +186,13 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   const SizedBox(height: 20),
                   TextField(
                     controller: driverNameController,
-                    decoration: _modernInput('Driver name', Icons.person, Colors.teal.shade500),
+                    decoration: _modernInput('driver_name'.tr(), Icons.person, Colors.teal.shade500),
                     textCapitalization: TextCapitalization.words,
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: carNumberController,
-                    decoration: _modernInput('Car number', Icons.pin, Colors.indigo.shade500),
+                    decoration: _modernInput('car_plate'.tr(), Icons.pin, Colors.indigo.shade500),
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [
                       TextInputFormatter.withFunction((oldValue, newValue) => TextEditingValue(
@@ -202,11 +203,10 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Jármű típus Dropdown (TextField helyett)
+                  // Jármű típus Dropdown
                   DropdownButtonFormField<String>(
                     value: _selectedVehicleType,
-                    // Itt hívjuk meg a függvényt, hogy dinamikus legyen az ikon:
-                    decoration: _modernInput('Vehicle Type', _getVehicleIcon(_selectedVehicleType), Colors.blue.shade500),
+                    decoration: _modernInput('vehicle_type'.tr(), _getVehicleIcon(_selectedVehicleType), Colors.blue.shade500),
                     items: _vehicleOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                     onChanged: (v) {
                       if (v != null) {
@@ -219,8 +219,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   // Üzemanyag típus Dropdown
                   DropdownButtonFormField<String>(
                     value: _selectedFuelType,
-                    // Itt is dinamikus az ikon:
-                    decoration: _modernInput('Fuel Type', _getFuelIcon(_selectedFuelType), Colors.orange.shade500),
+                    decoration: _modernInput('fuel_type'.tr(), _getFuelIcon(_selectedFuelType), Colors.orange.shade500),
                     items: _fuelOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                     onChanged: (v) {
                       if (v != null) {
@@ -244,9 +243,9 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                         child: Icon(Icons.event, size: 20, color: Colors.purple.shade700),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Event Binding',
-                        style: TextStyle(
+                      Text(
+                        'event_binding'.tr(), // Fordítás bekötve
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
@@ -259,18 +258,17 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                     controller: eventNameController,
                     readOnly: true, // Letiltjuk a gépelést
                     style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w500),
-                    decoration: _modernInput('Event name (Change in Settings)', Icons.celebration, Colors.purple.shade400).copyWith(
-                      fillColor: Colors.grey.shade200, // Szürke háttér jelzi, hogy zárolva van
+                    decoration: _modernInput('event_name_locked'.tr(), Icons.celebration, Colors.purple.shade400).copyWith(
+                      fillColor: Colors.grey.shade200,
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none, // Nincs keret, mert nem szerkeszthető
+                        borderSide: BorderSide.none,
                       ),
                     ),
-                    // Ha a felhasználó rákattint, adunk egy kis visszajelzést, hogy hol tudja megváltoztatni
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: const Text('To change the active event, please go to the Settings tab.'),
+                          content: Text('change_event_snackbar'.tr()), // Fordítás bekötve
                           behavior: SnackBarBehavior.floating,
                           backgroundColor: Colors.purple.shade600,
                           duration: const Duration(seconds: 2),

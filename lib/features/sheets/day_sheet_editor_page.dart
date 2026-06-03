@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
 import 'models/day_sheet.dart';
 import 'day_sheet_details_page.dart';
 import 'trip_rows_editor_page.dart';
@@ -209,9 +210,9 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
       appBar: AppBar(
         backgroundColor: Colors.grey.shade50,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          'Edit day sheet',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        title: Text(
+          'edit_day_sheet_title'.tr(), // Fordítva
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         actions: [
           Padding(
@@ -223,7 +224,7 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Save'),
+              child: Text('save'.tr()), // Fordítva
             ),
           ),
         ],
@@ -236,9 +237,9 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
             _buildActionCard(
               icon: Icons.calendar_month_rounded,
               iconColor: Colors.blue.shade600,
-              title: 'DATE',
+              title: 'date_card_title'.tr(), // Fordítva
               content: Text(
-                sheet.date.isEmpty ? 'Select date' : sheet.date,
+                sheet.date.isEmpty ? 'select_date'.tr() : sheet.date, // Fordítva
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -252,12 +253,12 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
             _buildActionCard(
               icon: Icons.badge_rounded,
               iconColor: Colors.purple.shade600,
-              title: 'GENERAL DETAILS',
+              title: 'general_details_card_title'.tr(), // Fordítva
               content: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    sheet.driverName.isEmpty ? 'No driver set' : sheet.driverName,
+                    sheet.driverName.isEmpty ? 'no_driver_set'.tr() : sheet.driverName, // Fordítva
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -283,7 +284,7 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
             _buildActionCard(
               icon: Icons.edit_road_rounded,
               iconColor: Colors.teal.shade600,
-              title: 'TRIP ROUTES',
+              title: 'trip_routes_card_title'.tr(), // Fordítva
               content: Row(
                 children: [
                   Expanded(
@@ -291,7 +292,7 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${sheet.rows.length} rows recorded',
+                          'rows_recorded'.tr(namedArgs: {'count': sheet.rows.length.toString()}), // Fordítva, paraméterezve
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -300,7 +301,7 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Tap to add or edit trips',
+                          'tap_to_add_edit_trips'.tr(), // Fordítva
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey.shade600,
@@ -316,7 +317,7 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${sheet.totalKm.toStringAsFixed(1)} km',
+                      '${sheet.totalKm.toInt()} km', // Kerekítve (tizedesek nélkül) ahogy a többi helyen
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.teal.shade800,

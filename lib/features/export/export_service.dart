@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:file_saver/file_saver.dart';
 import '../../core/network/api_client.dart';
 import '../../features/sheets/models/day_sheet.dart';
+import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
 
 class ExportService {
   final ApiClient apiClient;
@@ -37,8 +38,8 @@ class ExportService {
         mimeType: MimeType.microsoftExcel,
       );
     } else {
-      // Changed to English
-      throw Exception('Server error: ${response.statusCode} - ${response.body}');
+      // Kicserélve a tr() függvény használatával a dinamikus hibaüzenethez
+      throw Exception('${tr('err_server_error')}: ${response.statusCode} - ${response.body}');
     }
   }
 }

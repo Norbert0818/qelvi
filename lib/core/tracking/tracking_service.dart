@@ -10,6 +10,7 @@ import '../location/address_service.dart';
 import '../storage/prefs_service.dart';
 import '../../features/sheets/models/day_sheet.dart';
 import '../../features/sheets/models/trip_row.dart';
+import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
 
 class TrackingSnapshot {
   final bool isTracking;
@@ -121,13 +122,13 @@ class TrackingService {
     if (!isBackground) {
       final ok = await ensurePermissions();
       if (!ok) {
-        throw Exception('Location permission was not granted.');
+        throw Exception(tr('err_location_permission'));
       }
     }
 
     final alreadyRunning = await isRunning();
     if (alreadyRunning) {
-      throw Exception('Tracking already started.');
+      throw Exception(tr('err_already_started'));
     }
 
     Position? pos;
@@ -137,7 +138,7 @@ class TrackingService {
       pos = await Geolocator.getLastKnownPosition();
     }
 
-    String startAddress = 'Unknown location';
+    String startAddress = tr('unknown_location');
     if (pos != null) {
       startAddress = await _addressService.resolveAddress(pos);
     }
@@ -145,13 +146,13 @@ class TrackingService {
     final startTime = DateTime.now();
 
     final serviceResult = await FlutterForegroundTask.startService(
-      notificationTitle: 'Qelvi is tracking',
+      notificationTitle: tr('tracking_active'),
       notificationText: '0 km tracked',
       callback: startCallback,
     );
 
     if (serviceResult is! ServiceRequestSuccess) {
-      throw Exception('Failed to start foreground service: $serviceResult');
+      throw Exception('${tr('err_start_service')}: $serviceResult');
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -175,7 +176,7 @@ class TrackingService {
   Future<TrackingStopResult> stopAndSaveTrip() async {
     final running = await isRunning();
     if (!running) {
-      throw Exception('Tracking is not running.');
+      throw Exception(tr('err_not_running'));
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -196,7 +197,7 @@ class TrackingService {
       pos = await Geolocator.getLastKnownPosition();
     }
 
-    String endAddress = 'Unknown location';
+    String endAddress = tr('unknown_location');
     if (pos != null) {
       endAddress = await _addressService.resolveAddress(pos);
     }
@@ -278,9 +279,9 @@ class TrackingService {
     final savedLegacyMeters = prefs.getDouble(_totalDistanceLegacyKey);
 
     double km = 0.0;
-    // Itt is kerekítünk visszatöltéskor
-    if (savedDistanceKm != null) km = savedDistanceKm.roundToDouble();
-    if (savedLegacyMeters != null) km = (savedLegacyMeters / 1000.0).roundToDouble();
+    // --- ÉLŐ MÉRÉS: Visszatöltéskor is megtartjuk a pontos tizedeseket! ---
+    if (savedDistanceKm != null) km = savedDistanceKm;
+    if (savedLegacyMeters != null) km = savedLegacyMeters / 1000.0;
 
     final running = await isRunning();
     final startTime =
