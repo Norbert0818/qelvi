@@ -89,7 +89,7 @@
   "trip_saved_widget": "Trip Saved!",
   "err_widget_save": "Widget save error",
   "notification_channel_name": "Foreground Service Notification",
-  "notification_channel_desc": "This notification appears when the foreground service is running.",\,
+  "notification_channel_desc": "This notification appears when the foreground service is running.",
   "passenger": "Passenger",
   "cargo": "Cargo",
   "diesel": "Diesel",
