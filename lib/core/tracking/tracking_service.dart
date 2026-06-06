@@ -114,6 +114,23 @@ class TrackingService {
     return true;
   }
 
+  Future<bool> hasRequiredPermissions() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return false;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      return false;
+    }
+
+    if (permission == LocationPermission.whileInUse) {
+      final alwaysStatus = await Permission.locationAlways.status;
+      if (!alwaysStatus.isGranted) return false;
+    }
+
+    return true;
+  }
+
   Future<bool> isRunning() async {
     return FlutterForegroundTask.isRunningService;
   }

@@ -95,5 +95,8 @@
   "diesel": "Diesel",
   "petrol": "Petrol",
   "electric": "Electric",
-  "hybrid": "Hybrid"
+  "hybrid": "Hybrid",
+  "location_disclosure_title": "Background Location Access",
+  "location_disclosure_desc": "Qelvi collects location data to enable tracking of your driving distance and route even when the app is closed or not in use.",
+  "accept": "Accept"
 }

@@ -95,5 +95,8 @@
   "diesel": "Diesel",
   "petrol": "Benzină",
   "electric": "Electric",
-  "hybrid": "Hibrid"
+  "hybrid": "Hibrid",
+  "location_disclosure_title": "Acces la locație în fundal",
+  "location_disclosure_desc": "Qelvi colectează date despre locație pentru a permite înregistrarea distanței și a traseului în timp ce conduceți, chiar și atunci când aplicația este închisă sau nu este utilizată.",
+  "accept": "Accept"
 }

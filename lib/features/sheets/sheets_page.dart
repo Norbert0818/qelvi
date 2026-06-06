@@ -157,7 +157,7 @@ class _SheetsPageState extends State<SheetsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('err_fill_details_start'.tr()), // Fordítva
+          content: Text('err_fill_details_start'.tr()),
           backgroundColor: Colors.orange.shade700,
           behavior: SnackBarBehavior.floating,
         ),
@@ -169,6 +169,36 @@ class _SheetsPageState extends State<SheetsPage> {
       return;
     }
 
+    // --- 1. LÉPÉS: Megnézzük, van-e már engedély ---
+    bool hasPerms = await _trackingService.hasRequiredPermissions();
+
+    if (!hasPerms) {
+      // --- 2. LÉPÉS: Google Play kötelező Prominent Disclosure megjelenítése ---
+      final userAgreed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false, // Nem lehet mellékattintással bezárni
+        builder: (context) => AlertDialog(
+          title: Text('location_disclosure_title'.tr()),
+          content: Text('location_disclosure_desc'.tr()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('cancel'.tr()),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('accept'.tr()),
+            ),
+          ],
+        ),
+      );
+
+      // Ha a felhasználó a Mégse gombra nyomott, megszakítjuk a folyamatot
+      if (userAgreed != true) return;
+    }
+
+    // --- 3. LÉPÉS: Ha elfogadta (vagy már volt engedély), indítjuk a követést ---
+    // (A startTrip automatikusan meghívja a rendszer engedélykérőit, ha még hiányoznak)
     try {
       final result = await _trackingService.startTrip();
 
@@ -178,12 +208,12 @@ class _SheetsPageState extends State<SheetsPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('tracking_started'.tr())), // Fordítva
+        SnackBar(content: Text('tracking_started'.tr())),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${tr('err_start_error')}: $e')), // Fordítva
+        SnackBar(content: Text('${tr('err_start_error')}: $e')),
       );
     }
   }
