@@ -1,3 +1,4 @@
+// lib/features/sheets/models/day_sheet.dart
 import 'trip_row.dart';
 
 class DaySheet {

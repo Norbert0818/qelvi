@@ -1,3 +1,4 @@
+// lib/features/sheets/models/trip_row.dart
 class TripRow {
   String departurePlace;
   String departureTime;

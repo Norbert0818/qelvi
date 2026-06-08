@@ -1,3 +1,4 @@
+// lib/features/settings/settings_model.dart
 class SettingsModel {
   final String apiBaseUrl;
   final String apiKey;

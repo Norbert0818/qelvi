@@ -1,3 +1,4 @@
+// lib/app/app.dart
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart'; // Ezt az importot adtuk hozzá
 import '../core/tracking/tracking_service.dart';
@@ -48,7 +49,7 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
   @override
   void initState() {
     super.initState();
-    _requestPermissions();
+    // _requestPermissions();
   }
 
   Future<void> _requestPermissions() async {
