@@ -98,5 +98,11 @@
   "hybrid": "Hibrid",
   "location_disclosure_title": "Acces la locație în fundal",
   "location_disclosure_desc": "Qelvi colectează date despre locație în fundal pentru a permite înregistrarea distanței și a traseului în timp ce conduceți, chiar și atunci când aplicația este închisă sau nu este utilizată.",
-  "accept": "Accept"
+  "accept": "Accept",
+  "select_hint": "Selectează...",
+  "delete_event": "Șterge evenimentul",
+  "delete_event_dialog_title": "Șterge {event}",
+  "delete_event_dialog_desc": "Sunteți sigur că doriți să ștergeți acest eveniment și toate foile de parcurs asociate? Această acțiune este ireversibilă!",
+  "event_deleted_success": "{event} a fost șters cu succes!",
+  "day_sheets": "Foi de parcurs"
 }

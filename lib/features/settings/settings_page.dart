@@ -1,4 +1,3 @@
-// lib/features/settings/settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_model.dart';
@@ -25,11 +24,11 @@ class _SettingsPageState extends State<SettingsPage> {
   late final TextEditingController _carController;
   late final TextEditingController _eventController;
 
-  late String _selectedFuelType;
-  late String _selectedVehicleType;
+  // --- JAVÍTÁS 1: Nullázható típusok (String?) ---
+  String? _selectedFuelType;
+  String? _selectedVehicleType;
 
   final List<String> _fuelOptions = ['Diesel', 'Petrol', 'Electric', 'Hybrid'];
-
   final List<String> _vehicleOptions = ['Passenger', 'Cargo'];
 
   @override
@@ -39,17 +38,12 @@ class _SettingsPageState extends State<SettingsPage> {
     _carController = TextEditingController(text: widget.settings.defaultCarPlate);
     _eventController = TextEditingController(text: widget.settings.activeEventName);
 
-    if (widget.settings.defaultFuelType.isEmpty) {
-      _selectedFuelType = _fuelOptions.first;
-      _updatePref('default_fuel_type', _selectedFuelType);
-    } else {
+    // --- JAVÍTÁS 2: Nem állítunk be automatikusan semmit, ha üres! ---
+    if (widget.settings.defaultFuelType.isNotEmpty && _fuelOptions.contains(widget.settings.defaultFuelType)) {
       _selectedFuelType = widget.settings.defaultFuelType;
     }
 
-    if (widget.settings.defaultVehicleType.isEmpty) {
-      _selectedVehicleType = _vehicleOptions.first;
-      _updatePref('default_vehicle_type', _selectedVehicleType);
-    } else {
+    if (widget.settings.defaultVehicleType.isNotEmpty && _vehicleOptions.contains(widget.settings.defaultVehicleType)) {
       _selectedVehicleType = widget.settings.defaultVehicleType;
     }
   }
@@ -76,19 +70,20 @@ class _SettingsPageState extends State<SettingsPage> {
     widget.onSettingsChanged();
   }
 
-  IconData _getVehicleIcon(String type) {
+  // --- JAVÍTÁS 3: Az ikon is tudja kezelni a null (üres) értéket ---
+  IconData _getVehicleIcon(String? type) {
     switch (type) {
       case 'Passenger': return Icons.directions_car_rounded;
       case 'Cargo': return Icons.local_shipping_rounded;
-      default: return Icons.directions_car_rounded;
+      default: return Icons.directions_car_rounded; // Alapértelmezett ikon, ha nincs kiválasztva
     }
   }
 
-  IconData _getFuelIcon(String type) {
+  IconData _getFuelIcon(String? type) {
     if (type == 'Electric' || type == 'Hybrid') {
       return Icons.ev_station_rounded;
     }
-    return Icons.local_gas_station_rounded;
+    return Icons.local_gas_station_rounded; // Alapértelmezett ikon, ha nincs kiválasztva
   }
 
   InputDecoration _modernInput(String label, IconData icon, Color iconColor) {
@@ -116,10 +111,9 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildLangButton(BuildContext context, String title, String langCode) {
     final isActive = context.locale.languageCode == langCode;
     return TextButton(
-      // --- JAVÍTÁS 1: Azonnali frissítés a főoldalon! ---
       onPressed: () async {
         await context.setLocale(Locale(langCode));
-        widget.onSettingsChanged(); // Ezzel szólunk a SheetsPage-nek, hogy rajzolja újra az alsó menüt is!
+        widget.onSettingsChanged();
       },
       style: TextButton.styleFrom(
         minimumSize: const Size(40, 40),
@@ -157,7 +151,6 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         children: [
-          // --- SETTINGS CARD ---
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -228,13 +221,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // --- JAVÍTÁS 2: Jármű típus Dropdown UI fordítása ---
+                // --- JAVÍTÁS 4: Jármű típus Dropdown (Üres alapérték + Hint) ---
                 DropdownButtonFormField<String>(
                   value: _selectedVehicleType,
+                  hint: Text('select_hint'.tr()), // <--- SÚGÓ SZÖVEG
                   decoration: _modernInput('vehicle_type'.tr(), _getVehicleIcon(_selectedVehicleType), Colors.brown.shade500),
                   items: _vehicleOptions.map((e) => DropdownMenuItem(
                       value: e,
-                      // Itt csak a MEGJELENÉST fordítjuk, a mentett érték (value) marad az eredeti!
                       child: Text(e.toLowerCase().tr())
                   )).toList(),
                   onChanged: (v) {
@@ -246,13 +239,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // --- JAVÍTÁS 3: Üzemanyag típus Dropdown UI fordítása ---
+                // --- JAVÍTÁS 5: Üzemanyag típus Dropdown (Üres alapérték + Hint) ---
                 DropdownButtonFormField<String>(
                   value: _selectedFuelType,
+                  hint: Text('select_hint'.tr()), // <--- SÚGÓ SZÖVEG
                   decoration: _modernInput('fuel_type'.tr(), _getFuelIcon(_selectedFuelType), Colors.orange.shade500),
                   items: _fuelOptions.map((e) => DropdownMenuItem(
                       value: e,
-                      child: Text(e.toLowerCase().tr()) // Szintén itt
+                      child: Text(e.toLowerCase().tr())
                   )).toList(),
                   onChanged: (v) {
                     if (v != null) {

@@ -22,9 +22,9 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
   late TextEditingController driverNameController;
   late TextEditingController eventNameController;
 
-  // Dropdown változók és opciók
-  late String _selectedFuelType;
-  late String _selectedVehicleType;
+  // --- JAVÍTÁS 1: Nullázható típusok (String?) ---
+  String? _selectedFuelType;
+  String? _selectedVehicleType;
 
   final List<String> _fuelOptions = ['Diesel', 'Petrol', 'Electric', 'Hybrid'];
   final List<String> _vehicleOptions = ['Passenger', 'Cargo'];
@@ -36,16 +36,13 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
     driverNameController = TextEditingController(text: widget.daySheet.driverName);
     eventNameController = TextEditingController(text: widget.daySheet.eventName);
 
-    // Kezdeti járműtípus beállítása (ha üres vagy nem szerepel a listában, kap egy alapértelmezettet)
-    _selectedVehicleType = widget.daySheet.vehicleType;
-    if (!_vehicleOptions.contains(_selectedVehicleType)) {
-      _selectedVehicleType = _vehicleOptions.first;
+    // --- JAVÍTÁS 2: Csak akkor állítjuk be, ha érvényes, különben marad null ---
+    if (_vehicleOptions.contains(widget.daySheet.vehicleType)) {
+      _selectedVehicleType = widget.daySheet.vehicleType;
     }
 
-    // Kezdeti üzemanyag beállítása
-    _selectedFuelType = widget.daySheet.fuelType;
-    if (!_fuelOptions.contains(_selectedFuelType)) {
-      _selectedFuelType = _fuelOptions.first;
+    if (_fuelOptions.contains(widget.daySheet.fuelType)) {
+      _selectedFuelType = widget.daySheet.fuelType;
     }
   }
 
@@ -60,9 +57,9 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
   void _save() {
     final updated = DaySheet(
       id: widget.daySheet.id,
-      // Itt már a dropdownból választott értékeket mentjük el
-      vehicleType: _selectedVehicleType,
-      fuelType: _selectedFuelType,
+      // --- JAVÍTÁS 5: Ha null, üres stringet adunk át mentéskor ---
+      vehicleType: _selectedVehicleType ?? '',
+      fuelType: _selectedFuelType ?? '',
       date: widget.daySheet.date,
       carNumber: carNumberController.text.trim(),
       driverName: driverNameController.text.trim(),
@@ -74,19 +71,20 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
     Navigator.pop(context, updated);
   }
 
-  IconData _getVehicleIcon(String type) {
+  // --- JAVÍTÁS 3: Az ikon is tudja kezelni a null (üres) értéket ---
+  IconData _getVehicleIcon(String? type) {
     switch (type) {
-      case 'Passenger': return Icons.directions_car_rounded; // Személyautó
-      case 'Cargo': return Icons.local_shipping_rounded;     // Kamion
+      case 'Passenger': return Icons.directions_car_rounded;
+      case 'Cargo': return Icons.local_shipping_rounded;
       default: return Icons.directions_car_rounded;
     }
   }
 
-  IconData _getFuelIcon(String type) {
+  IconData _getFuelIcon(String? type) {
     if (type == 'Electric' || type == 'Hybrid') {
-      return Icons.ev_station_rounded; // Elektromos töltő
+      return Icons.ev_station_rounded;
     }
-    return Icons.local_gas_station_rounded; // Hagyományos kút
+    return Icons.local_gas_station_rounded;
   }
 
   // Modern input decoration helper
@@ -124,7 +122,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
         backgroundColor: Colors.grey.shade50,
         surfaceTintColor: Colors.transparent,
         title: Text(
-          'edit_details'.tr(), // Fordítás bekötve
+          'edit_details'.tr(),
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         actions: [
@@ -137,7 +135,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: Text('save'.tr()), // Fordítás bekötve
+              child: Text('save'.tr()),
             ),
           ),
         ],
@@ -175,7 +173,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'general_info'.tr(), // Fordítás bekötve
+                        'general_info'.tr(),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -204,11 +202,15 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Jármű típus Dropdown
+                  // --- JAVÍTÁS 4: Jármű típus Dropdown (Üres alapérték + Hint + Fordítás) ---
                   DropdownButtonFormField<String>(
                     value: _selectedVehicleType,
+                    hint: Text('select_hint'.tr()),
                     decoration: _modernInput('vehicle_type'.tr(), _getVehicleIcon(_selectedVehicleType), Colors.blue.shade500),
-                    items: _vehicleOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: _vehicleOptions.map((e) => DropdownMenuItem(
+                        value: e,
+                        child: Text(e.toLowerCase().tr())
+                    )).toList(),
                     onChanged: (v) {
                       if (v != null) {
                         setState(() => _selectedVehicleType = v);
@@ -217,11 +219,15 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Üzemanyag típus Dropdown
+                  // --- JAVÍTÁS 4: Üzemanyag típus Dropdown (Üres alapérték + Hint + Fordítás) ---
                   DropdownButtonFormField<String>(
                     value: _selectedFuelType,
+                    hint: Text('select_hint'.tr()),
                     decoration: _modernInput('fuel_type'.tr(), _getFuelIcon(_selectedFuelType), Colors.orange.shade500),
-                    items: _fuelOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: _fuelOptions.map((e) => DropdownMenuItem(
+                        value: e,
+                        child: Text(e.toLowerCase().tr())
+                    )).toList(),
                     onChanged: (v) {
                       if (v != null) {
                         setState(() => _selectedFuelType = v);
@@ -245,7 +251,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'event_binding'.tr(), // Fordítás bekötve
+                        'event_binding'.tr(),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -257,7 +263,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: eventNameController,
-                    readOnly: true, // Letiltjuk a gépelést
+                    readOnly: true,
                     style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w500),
                     decoration: _modernInput('event_name_locked'.tr(), Icons.celebration, Colors.purple.shade400).copyWith(
                       fillColor: Colors.grey.shade200,
@@ -269,7 +275,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('change_event_snackbar'.tr()), // Fordítás bekötve
+                          content: Text('change_event_snackbar'.tr()),
                           behavior: SnackBarBehavior.floating,
                           backgroundColor: Colors.purple.shade600,
                           duration: const Duration(seconds: 2),

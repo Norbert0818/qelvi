@@ -98,5 +98,11 @@
   "hybrid": "Hibrid",
   "location_disclosure_title": "Helyadatok használata",
   "location_disclosure_desc": "A Qelvi a háttérben is gyűjti a helyadatokat, hogy rögzíteni tudja a megtett távolságot és az útvonalat vezetés közben, még akkor is, ha az alkalmazás be van zárva vagy nincs használatban.",
-  "accept": "Elfogadom"
+  "accept": "Elfogadom",
+  "select_hint": "Válassz...",
+  "delete_event": "Esemény törlése",
+  "delete_event_dialog_title": "{event} törlése",
+  "delete_event_dialog_desc": "Biztosan törölni szeretnéd ezt az eseményt és a hozzá tartozó összes menetlevelet? Ez a művelet nem vonható vissza!",
+  "event_deleted_success": "{event} sikeresen törölve!",
+  "day_sheets": "Napi menetlevelek"
 }

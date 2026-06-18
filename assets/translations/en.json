@@ -98,5 +98,11 @@
   "hybrid": "Hybrid",
   "location_disclosure_title": "Background Location Access",
   "location_disclosure_desc": "Qelvi collects location data in the background to enable tracking of your driving distance and route even when the app is closed or not in use.",
-  "accept": "Accept"
+  "accept": "Accept",
+  "select_hint": "Select...",
+  "delete_event": "Delete Event",
+  "delete_event_dialog_title": "Delete {event}",
+  "delete_event_dialog_desc": "Are you sure you want to delete this event and all its trip sheets? This action cannot be undone!",
+  "event_deleted_success": "{event} successfully deleted!",
+  "day_sheets": "Day sheets"
 }

@@ -13,7 +13,9 @@
         android:label="Qelvi"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
 
         <receiver android:name=".QelviWidgetProvider" android:exported="true">
             <intent-filter>
