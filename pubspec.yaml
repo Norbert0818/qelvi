@@ -49,6 +49,7 @@ dependencies:
   flutter_launcher_icons: ^0.14.4
   home_widget: ^0.9.1
   easy_localization: ^3.0.8
+  flutter_typeahead: ^6.0.0
 
 dev_dependencies:
   flutter_test:

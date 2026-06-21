@@ -108,17 +108,17 @@ class AddressService {
 
     text = text.replaceAll(
       RegExp(r'\bStrada\b', caseSensitive: false),
-      'str.',
+      'Str.',
     );
 
     text = text.replaceAll(
       RegExp(r'\bBulevardul\b', caseSensitive: false),
-      'bd.',
+      'Bd.',
     );
 
     text = text.replaceAll(
       RegExp(r'\bBd\.\b', caseSensitive: false),
-      'bd.',
+      'Bd.',
     );
 
     text = text.replaceAll(
