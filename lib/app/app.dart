@@ -1,8 +1,9 @@
 // lib/app/app.dart
 import 'package:flutter/material.dart';
-import 'package:easy_localization/easy_localization.dart'; // Ezt az importot adtuk hozzá
+import 'package:easy_localization/easy_localization.dart';
 import '../core/tracking/tracking_service.dart';
 import '../features/sheets/sheets_page.dart';
+import '../core/theme/solar_theme.dart'; // Add this import
 
 class QelviApp extends StatelessWidget {
   final TrackingService trackingService;
@@ -22,45 +23,14 @@ class QelviApp extends StatelessWidget {
       supportedLocales: context.supportedLocales,
       locale: context.locale,
 
-      theme: ThemeData(
-        colorSchemeSeed: Colors.blue,
-        useMaterial3: true,
-      ),
+      // --- APPLIED THEME FIX ---
+      theme: SolarTheme.lightTheme,
+      darkTheme: SolarTheme.darkTheme,
+      themeMode: SolarTheme.currentThemeMode,
+
       home: const SheetsPage(),
     );
   }
 }
 
-class AppBootstrapper extends StatefulWidget {
-  final TrackingService trackingService;
-  final Widget child;
-
-  const AppBootstrapper({
-    Key? key,
-    required this.trackingService,
-    required this.child,
-  }) : super(key: key);
-
-  @override
-  State<AppBootstrapper> createState() => _AppBootstrapperState();
-}
-
-class _AppBootstrapperState extends State<AppBootstrapper> {
-  @override
-  void initState() {
-    super.initState();
-    // _requestPermissions();
-  }
-
-  Future<void> _requestPermissions() async {
-    bool hasPermissions = await widget.trackingService.ensurePermissions();
-    if (!hasPermissions) {
-      print("permission_warning".tr());
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return widget.child;
-  }
-}
+// ... (Keep the AppBootstrapper class exactly as it is) ...

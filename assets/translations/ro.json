@@ -104,5 +104,8 @@
   "delete_event_dialog_title": "Șterge {event}",
   "delete_event_dialog_desc": "Sunteți sigur că doriți să ștergeți acest eveniment și toate foile de parcurs asociate? Această acțiune este ireversibilă!",
   "event_deleted_success": "{event} a fost șters cu succes!",
-  "day_sheets": "Foi de parcurs"
+  "day_sheets": "Foi de parcurs",
+  "show_city_label": "Afișare localitate",
+  "show_city_desc": "Include numele localității în foaia de parcurs (ex: Cluj Napoca, Str. ...)",
+  "tab_archive": "Arhivă"
 }

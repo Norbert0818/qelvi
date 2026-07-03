@@ -14,6 +14,7 @@ import '../settings/settings_model.dart';
 import '../settings/settings_page.dart';
 import 'day_sheet_editor_page.dart';
 import 'models/day_sheet.dart';
+import 'archive_page.dart'; // <--- ÚJ IMPORT AZ ARCHÍVUM OLDALHOZ
 
 class SheetsPage extends StatefulWidget {
   const SheetsPage({super.key});
@@ -39,7 +40,6 @@ class _SheetsPageState extends State<SheetsPage> {
   }
 
   final _prefs = PrefsService();
-
   List<DaySheet> sheets = [];
 
   SettingsModel settings = const SettingsModel(
@@ -99,7 +99,6 @@ class _SheetsPageState extends State<SheetsPage> {
     super.dispose();
   }
 
-  // --- ESEMÉNY VÉGLEGES TÖRLÉSE ---
   Future<void> _deleteCurrentEvent() async {
     final currentEvent = settings.activeEventName;
     final displayEventName = (currentEvent.isEmpty || currentEvent == 'Day sheets') ? 'day_sheets'.tr() : currentEvent;
@@ -110,10 +109,7 @@ class _SheetsPageState extends State<SheetsPage> {
         title: Text('delete_event_dialog_title'.tr(namedArgs: {'event': displayEventName})),
         content: Text('delete_event_dialog_desc'.tr()),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('cancel'.tr()),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('cancel'.tr())),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
@@ -125,11 +121,9 @@ class _SheetsPageState extends State<SheetsPage> {
 
     if (confirm != true) return;
 
-    // Törlés a listából
     sheets.removeWhere((sheet) => sheet.eventName == currentEvent || (currentEvent.isEmpty && sheet.eventName.isEmpty));
     await _prefs.saveDaySheets(sheets);
 
-    // Új aktív esemény keresése
     final remainingEvents = sheets
         .where((s) => !s.isArchived && s.eventName.isNotEmpty)
         .map((s) => s.eventName)
@@ -220,7 +214,7 @@ class _SheetsPageState extends State<SheetsPage> {
       );
 
       setState(() {
-        selectedTab = 1;
+        selectedTab = 2; // Frissítve: A beállítás fül indexe 1-ről 2-re változott!
       });
       return;
     }
@@ -235,14 +229,8 @@ class _SheetsPageState extends State<SheetsPage> {
           title: Text('location_disclosure_title'.tr()),
           content: Text('location_disclosure_desc'.tr()),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('cancel'.tr()),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('accept'.tr()),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text('cancel'.tr())),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text('accept'.tr())),
           ],
         ),
       );
@@ -360,14 +348,8 @@ class _SheetsPageState extends State<SheetsPage> {
         title: Text('archive_event_dialog_title'.tr(namedArgs: {'event': currentEvent})),
         content: Text('archive_event_dialog_desc'.tr()),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('cancel'.tr()),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('archive_btn'.tr()),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('cancel'.tr())),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text('archive_btn'.tr())),
         ],
       ),
     );
@@ -410,29 +392,21 @@ class _SheetsPageState extends State<SheetsPage> {
         SnackBar(content: Text('err_configure_api'.tr())),
       );
       setState(() {
-        selectedTab = 1;
+        selectedTab = 2; // Beállítás fül indexe frissítve 2-re
       });
       return;
     }
 
     try {
-      final apiClient = ApiClient(
-        baseUrl: settings.apiBaseUrl,
-        apiKey: settings.apiKey,
-      );
-
+      final apiClient = ApiClient(baseUrl: settings.apiBaseUrl, apiKey: settings.apiKey);
       final exportService = ExportService(apiClient: apiClient);
-
       final activeSheets = sheets.where((s) => !s.isArchived && s.eventName == settings.activeEventName).toList();
 
       await exportService.downloadDaySheets(activeSheets);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('download_success'.tr()),
-          backgroundColor: Colors.green,
-        ),
+        SnackBar(content: Text('download_success'.tr()), backgroundColor: Colors.green),
       );
     } catch (e) {
       if (!mounted) return;
@@ -446,54 +420,35 @@ class _SheetsPageState extends State<SheetsPage> {
     if (text.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
+          Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
         ],
       ),
     );
   }
 
   Widget _buildSheetsTab() {
-    final activeSheets = sheets.where((s) =>
-    !s.isArchived && s.eventName == settings.activeEventName
-    ).toList();
+    final activeSheets = sheets.where((s) => !s.isArchived && s.eventName == settings.activeEventName).toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Tracking card maradt a régi...
         Container(
           margin: const EdgeInsets.only(bottom: 24),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             gradient: LinearGradient(
-              colors: tracking.isTracking
-                  ? [Colors.teal.shade400, Colors.blue.shade500]
-                  : [Colors.blue.shade600, Colors.indigo.shade500],
+              colors: tracking.isTracking ? [Colors.teal.shade400, Colors.blue.shade500] : [Colors.blue.shade600, Colors.indigo.shade500],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: (tracking.isTracking ? Colors.teal : Colors.blue).withOpacity(0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            boxShadow: [BoxShadow(color: (tracking.isTracking ? Colors.teal : Colors.blue).withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -505,38 +460,12 @@ class _SheetsPageState extends State<SheetsPage> {
                   children: [
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            tracking.isTracking ? Icons.satellite_alt : Icons.local_parking,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
+                        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: Icon(tracking.isTracking ? Icons.satellite_alt : Icons.local_parking, color: Colors.white, size: 24)),
                         const SizedBox(width: 12),
-                        Text(
-                          tracking.isTracking ? 'tracking_active'.tr() : 'ready_to_drive'.tr(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        Text(tracking.isTracking ? 'tracking_active'.tr() : 'ready_to_drive'.tr(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                       ],
                     ),
-                    if (tracking.isTracking)
-                      const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      ),
+                    if (tracking.isTracking) const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -546,54 +475,20 @@ class _SheetsPageState extends State<SheetsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'distance'.tr(),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
+                          Text('distance'.tr(), style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                           const SizedBox(height: 4),
-                          Text(
-                            '${tracking.distanceKm.toStringAsFixed(2)} km',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Text('${tracking.distanceKm.toStringAsFixed(2)} km', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
-                    Container(
-                      height: 40,
-                      width: 1,
-                      color: Colors.white.withOpacity(0.3),
-                    ),
+                    Container(height: 40, width: 1, color: Colors.white.withOpacity(0.3)),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(
-                            'elapsed_time'.tr(),
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
+                          Text('elapsed_time'.tr(), style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                           const SizedBox(height: 4),
-                          Text(
-                            tracking.elapsed,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Text(tracking.elapsed, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -605,52 +500,18 @@ class _SheetsPageState extends State<SheetsPage> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: tracking.isTracking ? null : _startTracking,
-                        icon: Icon(
-                          Icons.play_arrow_rounded,
-                          color: tracking.isTracking ? Colors.white54 : Colors.blue.shade700,
-                        ),
-                        label: Text(
-                          'start'.tr(),
-                          style: TextStyle(
-                            color: tracking.isTracking ? Colors.white54 : Colors.blue.shade700,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: tracking.isTracking ? Colors.white.withOpacity(0.15) : Colors.white,
-                          disabledBackgroundColor: Colors.white.withOpacity(0.15),
-                          shadowColor: Colors.black.withOpacity(0.1),
-                          elevation: tracking.isTracking ? 0 : 8,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
+                        icon: Icon(Icons.play_arrow_rounded, color: tracking.isTracking ? Colors.white54 : Colors.blue.shade700),
+                        label: Text('start'.tr(), style: TextStyle(color: tracking.isTracking ? Colors.white54 : Colors.blue.shade700, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        style: ElevatedButton.styleFrom(backgroundColor: tracking.isTracking ? Colors.white.withOpacity(0.15) : Colors.white, disabledBackgroundColor: Colors.white.withOpacity(0.15), shadowColor: Colors.black.withOpacity(0.1), elevation: tracking.isTracking ? 0 : 8, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: tracking.isTracking ? _stopTracking : null,
-                        icon: Icon(
-                          Icons.stop_rounded,
-                          color: tracking.isTracking ? Colors.redAccent : Colors.white54,
-                        ),
-                        label: Text(
-                          'stop'.tr(),
-                          style: TextStyle(
-                            color: tracking.isTracking ? Colors.redAccent : Colors.white54,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: tracking.isTracking ? Colors.white : Colors.white.withOpacity(0.15),
-                          disabledBackgroundColor: Colors.white.withOpacity(0.15),
-                          shadowColor: Colors.black.withOpacity(0.1),
-                          elevation: tracking.isTracking ? 8 : 0,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
+                        icon: Icon(Icons.stop_rounded, color: tracking.isTracking ? Colors.redAccent : Colors.white54),
+                        label: Text('stop'.tr(), style: TextStyle(color: tracking.isTracking ? Colors.redAccent : Colors.white54, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        style: ElevatedButton.styleFrom(backgroundColor: tracking.isTracking ? Colors.white : Colors.white.withOpacity(0.15), disabledBackgroundColor: Colors.white.withOpacity(0.15), shadowColor: Colors.black.withOpacity(0.1), elevation: tracking.isTracking ? 8 : 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                       ),
                     ),
                   ],
@@ -660,7 +521,7 @@ class _SheetsPageState extends State<SheetsPage> {
           ),
         ),
 
-        // --- HEADER AND EXPORT BUTTON ---
+        // Header menü választó
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -668,11 +529,7 @@ class _SheetsPageState extends State<SheetsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'active_event_label'.tr(),
-                    style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-
+                  Text('active_event_label'.tr(), style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
                   PopupMenuButton<String>(
                     color: Colors.white,
                     surfaceTintColor: Colors.white,
@@ -694,19 +551,9 @@ class _SheetsPageState extends State<SheetsPage> {
                           value: eventName,
                           child: Row(
                             children: [
-                              Icon(
-                                isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                                color: isSelected ? Colors.blue.shade600 : Colors.grey.shade400,
-                                size: 20,
-                              ),
+                              Icon(isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked, color: isSelected ? Colors.blue.shade600 : Colors.grey.shade400, size: 20),
                               const SizedBox(width: 12),
-                              Text(
-                                displayEventName,
-                                style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected ? Colors.blue.shade900 : Colors.black87,
-                                ),
-                              ),
+                              Text(displayEventName, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Colors.blue.shade900 : Colors.black87)),
                             ],
                           ),
                         );
@@ -717,10 +564,7 @@ class _SheetsPageState extends State<SheetsPage> {
                       children: [
                         Flexible(
                           child: Text(
-                            // --- JAVÍTOTT CÍM KIÍRÁS ---
-                            (settings.activeEventName.trim().isEmpty || settings.activeEventName == 'Day sheets' || settings.activeEventName == 'day_sheets'.tr())
-                                ? 'day_sheets'.tr()
-                                : settings.activeEventName,
+                            (settings.activeEventName.trim().isEmpty || settings.activeEventName == 'Day sheets' || settings.activeEventName == 'day_sheets'.tr()) ? 'day_sheets'.tr() : settings.activeEventName,
                             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -733,11 +577,10 @@ class _SheetsPageState extends State<SheetsPage> {
                 ],
               ),
             ),
-
-            // --- JAVÍTOTT POPUP MENÜ (TÖRLÉS GOMBBAL) ---
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.black87),
-              color: Colors.white,
+              // A 3 pötty színe mostantól a téma szövegszíne lesz:
+              icon: Icon(Icons.more_vert, color: Theme.of(context).colorScheme.onSurface),
+              color: Theme.of(context).cardColor,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               onSelected: (value) {
                 if (value == 'add') _openEditor();
@@ -745,23 +588,10 @@ class _SheetsPageState extends State<SheetsPage> {
                 if (value == 'delete') _deleteCurrentEvent();
               },
               itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'add',
-                  child: Row(children: [const Icon(Icons.add_circle_outline, color: Colors.blue), const SizedBox(width: 12), Text('add_manual'.tr())]),
-                ),
-                PopupMenuItem(
-                  value: 'archive',
-                  child: Row(children: [const Icon(Icons.archive_outlined, color: Colors.orange), const SizedBox(width: 12), Text('archive_event'.tr())]),
-                ),
+                PopupMenuItem(value: 'add', child: Row(children: [const Icon(Icons.add_circle_outline, color: Colors.blue), const SizedBox(width: 12), Text('add_manual'.tr())])),
+                PopupMenuItem(value: 'archive', child: Row(children: [const Icon(Icons.archive_outlined, color: Colors.orange), const SizedBox(width: 12), Text('archive_event'.tr())])),
                 const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(children: [
-                    const Icon(Icons.delete_forever, color: Colors.red),
-                    const SizedBox(width: 12),
-                    Text('delete_event'.tr(), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
-                  ]),
-                ),
+                PopupMenuItem(value: 'delete', child: Row(children: [const Icon(Icons.delete_forever, color: Colors.red), const SizedBox(width: 12), Text('delete_event'.tr(), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold))])),
               ],
             ),
           ],
@@ -771,151 +601,72 @@ class _SheetsPageState extends State<SheetsPage> {
           onPressed: _export,
           icon: const Icon(Icons.download_rounded),
           label: Text('export_excel'.tr()),
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.green.shade50,
-            foregroundColor: Colors.green.shade700,
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade50, foregroundColor: Colors.green.shade700, alignment: Alignment.centerLeft, padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         ),
         const SizedBox(height: 24),
 
         if (activeSheets.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
-            child: Center(
+            child: Center(child: Column(children: [Icon(Icons.folder_open, size: 64, color: Colors.grey.shade300), const SizedBox(height: 16), Text('no_sheets_found'.tr(), style: TextStyle(color: Colors.grey.shade600, fontSize: 16, fontWeight: FontWeight.w500))])),
+          ),
+
+        ...activeSheets.map((sheet) => Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(20), border: Border.all(color: Theme.of(context).dividerColor), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))]),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => _openEditor(sheet),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  Icon(Icons.folder_open, size: 64, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text(
-                    'no_sheets_found'.tr(),
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 16, fontWeight: FontWeight.w500),
+                  Row(
+                    children: [
+                      Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12)), child: Icon(Icons.calendar_today, size: 18, color: Colors.blue.shade700)),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(sheet.date.isEmpty ? 'no_date'.tr() : sheet.date, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                      IconButton(onPressed: () => _openEditor(sheet), icon: Icon(Icons.edit_outlined, color: Colors.grey.shade600), tooltip: 'edit_tooltip'.tr()),
+                      IconButton(onPressed: () => _deleteSheet(sheet), icon: const Icon(Icons.delete_outline, color: Colors.redAccent), tooltip: 'delete_tooltip'.tr()),
+                    ],
+                  ),
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(spacing: 8, runSpacing: 8, children: [_buildBadge(Icons.directions_car, sheet.carNumber, Colors.indigo), _buildBadge(Icons.person, sheet.driverName, Colors.teal), _buildBadge(Icons.local_gas_station, sheet.fuelType, Colors.orange)]),
+                            const SizedBox(height: 12),
+                            Text('trips_recorded'.tr(namedArgs: {'count': sheet.rows.length.toString()}), style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        flex: 1,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(16)),
+                          child: Column(
+                            children: [
+                              Text('total_badge'.tr(), style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 4),
+                              Text('${sheet.totalKm.toInt()}', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                              const Text('km', style: TextStyle(fontSize: 12, color: Colors.blue)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-
-        ...activeSheets.map(
-              (sheet) => Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey.shade100),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => _openEditor(sheet),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(Icons.calendar_today, size: 18, color: Colors.blue.shade700),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            sheet.date.isEmpty ? 'no_date'.tr() : sheet.date,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => _openEditor(sheet),
-                          icon: Icon(Icons.edit_outlined, color: Colors.grey.shade600),
-                          tooltip: 'edit_tooltip'.tr(),
-                        ),
-                        IconButton(
-                          onPressed: () => _deleteSheet(sheet),
-                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                          tooltip: 'delete_tooltip'.tr(),
-                        ),
-                      ],
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Divider(height: 1),
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  _buildBadge(Icons.directions_car, sheet.carNumber, Colors.indigo),
-                                  _buildBadge(Icons.person, sheet.driverName, Colors.teal),
-                                  _buildBadge(Icons.local_gas_station, sheet.fuelType, Colors.orange),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'trips_recorded'.tr(namedArgs: {'count': sheet.rows.length.toString()}),
-                                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  'total_badge'.tr(),
-                                  style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${sheet.totalKm.toInt()}',
-                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
-                                ),
-                                const Text(
-                                  'km',
-                                  style: TextStyle(fontSize: 12, color: Colors.blue),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+        )),
         const SizedBox(height: 20),
       ],
     );
@@ -931,41 +682,105 @@ class _SheetsPageState extends State<SheetsPage> {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // --- ULTRA-LETISZTULT, PRÉMIUM APPBAR ---
       appBar: AppBar(
-        backgroundColor: Colors.grey.shade50,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          'Qelvi',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22, letterSpacing: -0.5),
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(color: Colors.blue.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 2)),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/app_icon.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.route, color: Colors.blue),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Törölve a color: Colors.black87, így automatikusan vált a témához!
+            Text(
+              'Qelvi',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5, color: Theme.of(context).colorScheme.onSurface),
+            ),
+          ],
         ),
-        centerTitle: false,
+        actions: [
+          if (settings.defaultCarPlate.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor, // <-- Dinamikus kártyaszín
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Theme.of(context).dividerColor, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Container(width: 6, height: 12, decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: BorderRadius.circular(1.5))),
+                  const SizedBox(width: 6),
+                  Text(
+                    settings.defaultCarPlate,
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 0.5, color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
-      body: selectedTab == 0 ? _buildSheetsTab() : _buildSettingsTab(),
+
+      // --- JAVÍTOTT BODY LOGIKA (Kezeli mind a 3 fület!) ---
+      body: selectedTab == 0
+          ? _buildSheetsTab()
+          : selectedTab == 1
+          ? ArchivePage(settings: settings, onDataChanged: _loadData) // <--- Az új középső fül megjelenítése
+          : _buildSettingsTab(),
+
+      // --- INTELIGENS ALSÓ NAVIGÁCIÓS SÁV ---
       bottomNavigationBar: NavigationBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 10,
         indicatorColor: Colors.blue.shade100,
         selectedIndex: selectedTab,
         onDestinationSelected: (index) {
           setState(() {
             selectedTab = index;
-            if (index == 0) _loadData();
+            // Ha a menetlevelekre (0) vagy az archívumra (1) kattint, azonnal töltsön be friss adatokat
+            if (index == 0 || index == 1) _loadData();
           });
         },
         destinations: [
+          // 0. INDEX: Menetlevelek fül
           NavigationDestination(
             icon: const Icon(Icons.table_chart_outlined),
             selectedIcon: const Icon(Icons.table_chart, color: Colors.blue),
             label: 'tab_sheets'.tr(),
           ),
+          // --- ÚJ: 1. INDEX: Archívum fül beszúrva KÖZÉPRE ---
+          NavigationDestination(
+            icon: const Icon(Icons.archive_outlined),
+            selectedIcon: const Icon(Icons.archive, color: Colors.blue),
+            label: 'tab_archive'.tr(), // <--- Új fordítási kulcs
+          ),
+          // 2. INDEX: Beállítások fül
           NavigationDestination(
             icon: const Icon(Icons.settings_outlined),
             selectedIcon: const Icon(Icons.settings, color: Colors.blue),

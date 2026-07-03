@@ -104,5 +104,8 @@
   "delete_event_dialog_title": "Delete {event}",
   "delete_event_dialog_desc": "Are you sure you want to delete this event and all its trip sheets? This action cannot be undone!",
   "event_deleted_success": "{event} successfully deleted!",
-  "day_sheets": "Day sheets"
+  "day_sheets": "Day sheets",
+  "show_city_label": "Display city name",
+  "show_city_desc": "Include the municipality in the trip logs (e.g., Cluj Napoca, Str. ...)",
+  "tab_archive": "Archive"
 }

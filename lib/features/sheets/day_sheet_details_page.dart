@@ -89,11 +89,12 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
 
   // Modern input decoration helper
   InputDecoration _modernInput(String label, IconData icon, Color iconColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon, size: 22, color: iconColor),
       filled: true,
-      fillColor: Colors.grey.shade50,
+      fillColor: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50, // <-- CSERÉLVE
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -101,7 +102,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: Colors.grey.shade200, width: 1),
+        borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 1), // <-- CSERÉLVE
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -116,10 +117,10 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
     final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        backgroundColor: Colors.grey.shade50,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
         title: Text(
           'edit_details'.tr(),
@@ -147,9 +148,9 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: Theme.of(context).dividerColor),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.02),
@@ -177,7 +178,6 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
                         ),
                       ),
                     ],
@@ -255,7 +255,6 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
                         ),
                       ),
                     ],
@@ -264,9 +263,11 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   TextField(
                     controller: eventNameController,
                     readOnly: true,
-                    style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
                     decoration: _modernInput('event_name_locked'.tr(), Icons.celebration, Colors.purple.shade400).copyWith(
-                      fillColor: Colors.grey.shade200,
+                      fillColor: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF1A1A1A)
+                          : Colors.grey.shade200,
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,

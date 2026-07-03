@@ -138,7 +138,6 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
     Navigator.pop(context);
   }
 
-  // Helper for modern action cards
   Widget _buildActionCard({
     required IconData icon,
     required Color iconColor,
@@ -149,9 +148,9 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor, // <-- CSERÉLVE (Volt: Colors.white)
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Theme.of(context).dividerColor), // <-- CSERÉLVE
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
@@ -207,9 +206,9 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.grey.shade50,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
         title: Text(
           'edit_day_sheet_title'.tr(), // Fordítva
@@ -241,10 +240,10 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
               title: 'date_card_title'.tr(), // Fordítva
               content: Text(
                 sheet.date.isEmpty ? 'select_date'.tr() : sheet.date, // Fordítva
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               onTap: _pickDate,
@@ -260,10 +259,10 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
                 children: [
                   Text(
                     sheet.driverName.isEmpty ? 'no_driver_set'.tr() : sheet.driverName, // Fordítva
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -294,10 +293,10 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
                       children: [
                         Text(
                           'rows_recorded'.tr(namedArgs: {'count': sheet.rows.length.toString()}), // Fordítva, paraméterezve
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -337,21 +336,22 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
 
   Widget _buildSmallBadge(IconData icon, String text) {
     if (text.isEmpty) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: Colors.grey.shade700),
+          Icon(icon, size: 12, color: isDark ? Colors.grey.shade400 : Colors.grey.shade700),
           const SizedBox(width: 4),
           Text(
             text,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface),
           ),
         ],
       ),

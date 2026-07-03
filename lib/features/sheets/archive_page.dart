@@ -182,8 +182,8 @@ class _ArchivePageState extends State<ArchivePage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(child: CircularProgressIndicator()),
       );
     }
@@ -191,9 +191,9 @@ class _ArchivePageState extends State<ArchivePage> {
     final eventNames = _archivedEvents.keys.toList();
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.grey.shade50,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
         title: Text(
           'archive_title'.tr(),
@@ -236,9 +236,9 @@ class _ArchivePageState extends State<ArchivePage> {
           return Container(
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: Theme.of(context).dividerColor),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.02),

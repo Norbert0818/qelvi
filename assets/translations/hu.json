@@ -104,5 +104,8 @@
   "delete_event_dialog_title": "{event} törlése",
   "delete_event_dialog_desc": "Biztosan törölni szeretnéd ezt az eseményt és a hozzá tartozó összes menetlevelet? Ez a művelet nem vonható vissza!",
   "event_deleted_success": "{event} sikeresen törölve!",
-  "day_sheets": "Napi menetlevelek"
+  "day_sheets": "Napi menetlevelek",
+  "show_city_label": "Városnév megjelenítése",
+  "show_city_desc": "Mutassa a települést is a menetleveleknél (Pl: Cluj Napoca, Str. ...)",
+  "tab_archive": "Archívum"
 }

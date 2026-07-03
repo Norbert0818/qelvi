@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart'; // <--- ÚJ: Ezzel kérjük le a GPS-ből a tiszta városnevet!
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models/day_sheet.dart';
 import 'models/trip_row.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -30,10 +32,15 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
   late List<_RowWrapper> wrappedRows;
   Position? _currentPosition;
 
+  // --- ÚJ: A tiszta GPS városneved (pl. "Zalău") ---
+  String _detectedGpsCity = '';
+  bool _showCity = true;
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
-    _initCurrentLocation();
+    _initEngine();
 
     wrappedRows = widget.daySheet.rows.map((r) {
       return _RowWrapper(
@@ -49,29 +56,40 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
     }).toList();
   }
 
-  Future<void> _initCurrentLocation() async {
+  // --- A KÖZPONTI MOTOR (Beállítás + GPS + Városnév feloldó) ---
+  Future<void> _initEngine() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-          return;
+      final prefs = await SharedPreferences.getInstance();
+      _showCity = prefs.getBool('show_city_in_trips') ?? true;
+
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+
+      if (perm == LocationPermission.whileInUse || perm == LocationPermission.always) {
+        Position? pos = await Geolocator.getLastKnownPosition();
+        pos ??= await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 3));
+
+        if (pos != null) {
+          _currentPosition = pos;
+
+          // --- ITT KÉRJÜK LE A MŰHOLDBÓL A VÁROSOD NEVÉT ---
+          final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+          if (placemarks.isNotEmpty) {
+            final p = placemarks.first;
+            final resolvedCity = (p.locality ?? p.subAdministrativeArea ?? '').trim();
+            if (resolvedCity.isNotEmpty) {
+              _detectedGpsCity = resolvedCity;
+              print("📍 [GPS Város azonosítva]: '$_detectedGpsCity'");
+            }
+          }
         }
       }
-
-      Position? pos = await Geolocator.getLastKnownPosition();
-      pos ??= await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 3),
-      );
-
-      if (mounted && pos != null) {
-        setState(() {
-          _currentPosition = pos;
-        });
-      }
     } catch (e) {
-      print("📍 [GPS Hiba]: $e");
+      print("⚠️ Init hiba: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -87,7 +105,14 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
   }
 
   void _save() {
-    final updatedRows = wrappedRows.map((w) => w.row).toList();
+    // Mielőtt elmentjük, az összes soron kíméletlenül átfuttatjuk a formázót!
+    final updatedRows = wrappedRows.map((w) {
+      final r = w.row;
+      r.departurePlace = _normalizeAddress(r.departurePlace, _showCity, _detectedGpsCity);
+      r.arrivalPlace = _normalizeAddress(r.arrivalPlace, _showCity, _detectedGpsCity);
+      return r;
+    }).toList();
+
     final updatedSheet = DaySheet(
       id: widget.daySheet.id,
       vehicleType: widget.daySheet.vehicleType,
@@ -103,20 +128,13 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
     Navigator.pop(context, updatedSheet);
   }
 
-  // --- ARCGIS SUGGEST API (A javaslatok listája itt még a teljes, hosszú címet adja vissza!) ---
   Future<List<String>> _getEsriSuggestions(String query) async {
     final q = query.trim();
     if (q.length < 2) return [];
 
-    String urlString = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest'
-        '?text=${Uri.encodeComponent(q)}'
-        '&countryCode=RO,HU'
-        '&f=json'
-        '&maxSuggestions=6';
-
+    String urlString = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?text=${Uri.encodeComponent(q)}&countryCode=RO,HU&f=json&maxSuggestions=6';
     if (_currentPosition != null) {
-      urlString += '&location=${_currentPosition!.longitude},${_currentPosition!.latitude}';
-      urlString += '&distance=100000';
+      urlString += '&location=${_currentPosition!.longitude},${_currentPosition!.latitude}&distance=100000';
     }
 
     try {
@@ -124,11 +142,9 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List suggestions = data['suggestions'] ?? [];
-
         return suggestions.map((s) => s['text'].toString()).toList();
       }
     } catch (_) {}
-
     return [];
   }
 
@@ -137,58 +153,38 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final bottomSafe = MediaQuery.of(context).viewPadding.bottom;
 
+    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.grey.shade50,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
-        title: Text(
-          'trip_rows_title'.tr(namedArgs: {'date': widget.daySheet.date}),
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
-        ),
+        title: Text('trip_rows_title'.tr(namedArgs: {'date': widget.daySheet.date}), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: FilledButton.tonal(
-              onPressed: _save,
-              style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              child: Text('save'.tr()),
-            ),
+            child: FilledButton.tonal(onPressed: _save, style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: Text('save'.tr())),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addRow,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        icon: const Icon(Icons.add),
-        label: Text('add_row'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
-      ),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _addRow, elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), icon: const Icon(Icons.add), label: Text('add_row'.tr(), style: const TextStyle(fontWeight: FontWeight.bold))),
       body: SafeArea(
         child: ListView.builder(
           padding: EdgeInsets.fromLTRB(16, 16, 16, bottomInset + bottomSafe + 100),
           itemCount: wrappedRows.isEmpty ? 1 : wrappedRows.length,
           itemBuilder: (context, index) {
             if (wrappedRows.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 60),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.edit_road, size: 64, color: Colors.grey.shade300),
-                      const SizedBox(height: 16),
-                      Text('no_trip_rows_yet'.tr(), style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
-                    ],
-                  ),
-                ),
-              );
+              return Padding(padding: const EdgeInsets.symmetric(vertical: 60), child: Center(child: Column(children: [Icon(Icons.edit_road, size: 64, color: Colors.grey.shade300), const SizedBox(height: 16), Text('no_trip_rows_yet'.tr(), style: TextStyle(color: Colors.grey.shade600, fontSize: 16))])));
             }
 
             final item = wrappedRows[index];
             return _TripRowCard(
-              key: item.key,
+              key: item.key, // <--- HIBÁTLAN KEY ÁTADÁS
               index: index,
               row: item.row,
+              showCity: _showCity,
+              gpsCity: _detectedGpsCity,
               onDelete: () => setState(() => wrappedRows.removeAt(index)),
               suggestionsCallback: _getEsriSuggestions,
             );
@@ -202,6 +198,8 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
 class _TripRowCard extends StatefulWidget {
   final int index;
   final TripRow row;
+  final bool showCity;
+  final String gpsCity;
   final VoidCallback onDelete;
   final Future<List<String>> Function(String) suggestionsCallback;
 
@@ -209,6 +207,8 @@ class _TripRowCard extends StatefulWidget {
     super.key,
     required this.index,
     required this.row,
+    required this.showCity,
+    required this.gpsCity,
     required this.onDelete,
     required this.suggestionsCallback,
   });
@@ -227,9 +227,9 @@ class _TripRowCardState extends State<_TripRowCard> {
   @override
   void initState() {
     super.initState();
-    _depPlaceCtrl = TextEditingController(text: widget.row.departurePlace);
+    _depPlaceCtrl = TextEditingController(text: _normalizeAddress(widget.row.departurePlace, widget.showCity, widget.gpsCity));
     _depTimeCtrl = TextEditingController(text: widget.row.departureTime);
-    _arrPlaceCtrl = TextEditingController(text: widget.row.arrivalPlace);
+    _arrPlaceCtrl = TextEditingController(text: _normalizeAddress(widget.row.arrivalPlace, widget.showCity, widget.gpsCity));
     _arrTimeCtrl = TextEditingController(text: widget.row.arrivalTime);
     _kmCtrl = TextEditingController(text: widget.row.km == 0 ? '' : widget.row.km.toString());
   }
@@ -244,34 +244,19 @@ class _TripRowCardState extends State<_TripRowCard> {
     super.dispose();
   }
 
-  // --- NORMÁLÓ ÉS RÖVIDÍTŐ LOGIKA KIVÁLASZTÁSKOR ---
-  String _cleanAndShortenAddress(String fullText) {
-    String streetPart = fullText.split(',').first.trim();
-
-    streetPart = streetPart.replaceAll(
-      RegExp(r'\bStrada\b', caseSensitive: false),
-      'Str.',
-    );
-
-    streetPart = streetPart.replaceAll(
-      RegExp(r'\bBulevardul\b', caseSensitive: false),
-      'Bd.',
-    );
-
-    streetPart = streetPart.replaceAll(RegExp(r'\s+'), ' ');
-
-    return streetPart.trim();
-  }
-
   InputDecoration _modernInput(String label, IconData icon) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon, size: 20, color: Colors.blue.shade700),
       filled: true,
-      fillColor: Colors.grey.shade50,
+      fillColor: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50, // <-- CSERÉLVE
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200, width: 1)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 1), // <-- CSERÉLVE
+      ),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.blue.shade400, width: 2)),
     );
   }
@@ -282,11 +267,7 @@ class _TripRowCardState extends State<_TripRowCard> {
       final p = ctrl.text.split(':');
       init = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
     }
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: init,
-      builder: (ctx, child) => MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true), child: child!),
-    );
+    final picked = await showTimePicker(context: context, initialTime: init, builder: (ctx, child) => MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true), child: child!));
     if (picked != null) {
       final formatted = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       ctrl.text = formatted;
@@ -294,40 +275,18 @@ class _TripRowCardState extends State<_TripRowCard> {
     }
   }
 
-  Widget _buildProTypeAhead({
-    required String label,
-    required IconData icon,
-    required TextEditingController controller,
-    required Function(String) onSaved,
-  }) {
+  Widget _buildProTypeAhead({required String label, required IconData icon, required TextEditingController controller, required Function(String) onSaved}) {
     return TypeAheadField<String>(
       controller: controller,
       debounceDuration: const Duration(milliseconds: 300),
       suggestionsCallback: (pattern) async => await widget.suggestionsCallback(pattern),
-
-      // A tippeknél megmutatjuk a TELJES, HOSSZÚ címet, hogy látszódjon a város/megye is
-      itemBuilder: (context, suggestion) => ListTile(
-        visualDensity: VisualDensity.compact,
-        leading: const Icon(Icons.location_on, color: Colors.blue, size: 18),
-        title: Text(suggestion, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-      ),
-
-      // --- ITT TÖRTÉNIK A VARÁZSLAT KIVÁLASZTÁSKOR ---
+      itemBuilder: (context, suggestion) => ListTile(visualDensity: VisualDensity.compact, leading: const Icon(Icons.location_on, color: Colors.blue, size: 18), title: Text(suggestion, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
       onSelected: (suggestion) {
-        // Átfuttatjuk a kiválasztott hosszú stringet a tisztító függvényen
-        final shortAddress = _cleanAndShortenAddress(suggestion);
-
-        // Csak a rövidített nevet írjuk be a mezőbe és mentjük el!
-        controller.text = shortAddress;
-        onSaved(shortAddress);
+        final formatted = _normalizeAddress(suggestion, widget.showCity, widget.gpsCity);
+        controller.text = formatted;
+        onSaved(formatted);
       },
-
-      builder: (context, ctrl, focusNode) => TextField(
-        controller: ctrl,
-        focusNode: focusNode,
-        decoration: _modernInput(label, icon),
-        onChanged: onSaved,
-      ),
+      builder: (context, ctrl, focusNode) => TextField(controller: ctrl, focusNode: focusNode, decoration: _modernInput(label, icon), onChanged: onSaved),
       emptyBuilder: (context) => const SizedBox.shrink(),
     );
   }
@@ -336,81 +295,63 @@ class _TripRowCardState extends State<_TripRowCard> {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
+      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(22), border: Border.all(color: Theme.of(context).dividerColor), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-                      child: Icon(Icons.route, size: 18, color: Colors.blue.shade700),
-                    ),
-                    const SizedBox(width: 12),
-                    Text('trip_number'.tr(namedArgs: {'number': (widget.index + 1).toString()}), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ],
-                ),
-                IconButton(
-                  onPressed: widget.onDelete,
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                  tooltip: 'delete_row_tooltip'.tr(),
-                ),
-              ],
-            ),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle), child: Icon(Icons.route, size: 18, color: Colors.blue.shade700)), const SizedBox(width: 12), Text('trip_number'.tr(namedArgs: {'number': (widget.index + 1).toString()}), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]), IconButton(onPressed: widget.onDelete, icon: const Icon(Icons.delete_outline, color: Colors.redAccent), tooltip: 'delete_row_tooltip'.tr())]),
             const Divider(height: 24),
-
-            _buildProTypeAhead(
-              label: 'departure_place'.tr(),
-              icon: Icons.my_location,
-              controller: _depPlaceCtrl,
-              onSaved: (v) => widget.row.departurePlace = v,
-            ),
+            _buildProTypeAhead(label: 'departure_place'.tr(), icon: Icons.my_location, controller: _depPlaceCtrl, onSaved: (v) => widget.row.departurePlace = v),
             const SizedBox(height: 12),
-
-            TextField(
-              controller: _depTimeCtrl,
-              decoration: _modernInput('departure_time'.tr(), Icons.access_time),
-              readOnly: true,
-              onTap: () => _pickTime(_depTimeCtrl, (v) => widget.row.departureTime = v),
-            ),
+            TextField(controller: _depTimeCtrl, decoration: _modernInput('departure_time'.tr(), Icons.access_time), readOnly: true, onTap: () => _pickTime(_depTimeCtrl, (v) => widget.row.departureTime = v)),
             const SizedBox(height: 12),
-
-            _buildProTypeAhead(
-              label: 'arrival_place'.tr(),
-              icon: Icons.location_on,
-              controller: _arrPlaceCtrl,
-              onSaved: (v) => widget.row.arrivalPlace = v,
-            ),
+            _buildProTypeAhead(label: 'arrival_place'.tr(), icon: Icons.location_on, controller: _arrPlaceCtrl, onSaved: (v) => widget.row.arrivalPlace = v),
             const SizedBox(height: 12),
-
-            TextField(
-              controller: _arrTimeCtrl,
-              decoration: _modernInput('arrival_time'.tr(), Icons.access_time_filled),
-              readOnly: true,
-              onTap: () => _pickTime(_arrTimeCtrl, (v) => widget.row.arrivalTime = v),
-            ),
+            TextField(controller: _arrTimeCtrl, decoration: _modernInput('arrival_time'.tr(), Icons.access_time_filled), readOnly: true, onTap: () => _pickTime(_arrTimeCtrl, (v) => widget.row.arrivalTime = v)),
             const SizedBox(height: 12),
-
-            TextField(
-              controller: _kmCtrl,
-              decoration: _modernInput('km_label'.tr(), Icons.directions_car),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (v) => widget.row.km = double.tryParse(v.replaceAll(',', '.')) ?? 0,
-            ),
+            TextField(controller: _kmCtrl, decoration: _modernInput('km_label'.tr(), Icons.directions_car), keyboardType: const TextInputType.numberWithOptions(decimal: true), onChanged: (v) => widget.row.km = double.tryParse(v.replaceAll(',', '.')) ?? 0),
           ],
         ),
       ),
     );
   }
+}
+
+// ============================================================================
+// AZ UNIVERZÁLIS CÍM-POLÍROZÓ (Bármilyen fura Esri formátumot gatyába ráz)
+// ============================================================================
+String _normalizeAddress(String rawText, bool showCity, String gpsCity) {
+  if (rawText.trim().isEmpty) return '';
+
+  // 1. Alapvető cserék
+  String text = rawText.trim();
+  text = text.replaceAll(RegExp(r'\bStrada\b', caseSensitive: false), 'Str.');
+  text = text.replaceAll(RegExp(r'\bBulevardul\b', caseSensitive: false), 'Bd.');
+  text = text.replaceAll(RegExp(r'\s+'), ' ');
+
+  if (showCity) {
+    // Ha kéri a várost, de a kapott szövegben MÉG NINCS benne (pl. "Str. Olarilor 36")
+    if (!text.contains(',')) {
+      if (gpsCity.isNotEmpty) {
+        return '$gpsCity, $text'; // <--- ITT CSAPJUK HOZZÁ A GPS VÁROST: "Zalău, Str. Olarilor 36"
+      }
+    } else {
+      // Ha az Esri fordítva adta vissza: "Str. Olarilor 36, Zalău" -> Megfordítjuk!
+      final chunks = text.split(',').map((e) => e.trim()).toList();
+      if (chunks.length == 2 && !chunks[0].toLowerCase().contains(gpsCity.toLowerCase())) {
+        if (!RegExp(r'^\d+$').hasMatch(chunks[1])) {
+          return '${chunks[1]}, ${chunks[0]}';
+        }
+      }
+    }
+  } else {
+    // Ha NEM kéri a várost, de a szövegben benne van (pl. "Zalău, Str. Olarilor 36") -> Levágjuk az elejét!
+    if (text.contains(',')) {
+      return text.split(',').last.trim(); // Eredmény: "Str. Olarilor 36"
+    }
+  }
+
+  return text.trim();
 }
