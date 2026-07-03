@@ -14,7 +14,8 @@ import '../settings/settings_model.dart';
 import '../settings/settings_page.dart';
 import 'day_sheet_editor_page.dart';
 import 'models/day_sheet.dart';
-import 'archive_page.dart'; // <--- ÚJ IMPORT AZ ARCHÍVUM OLDALHOZ
+import 'archive_page.dart';
+import 'package:open_filex/open_filex.dart';
 
 class SheetsPage extends StatefulWidget {
   const SheetsPage({super.key});
@@ -392,7 +393,7 @@ class _SheetsPageState extends State<SheetsPage> {
         SnackBar(content: Text('err_configure_api'.tr())),
       );
       setState(() {
-        selectedTab = 2; // Beállítás fül indexe frissítve 2-re
+        selectedTab = 2; // Beállítás fül
       });
       return;
     }
@@ -402,11 +403,31 @@ class _SheetsPageState extends State<SheetsPage> {
       final exportService = ExportService(apiClient: apiClient);
       final activeSheets = sheets.where((s) => !s.isArchived && s.eventName == settings.activeEventName).toList();
 
-      await exportService.downloadDaySheets(activeSheets);
+      // ITT A LÉNYEG: Átadjuk a beállításokból az aktív eseményt és sofőrt!
+      final savedPath = await exportService.downloadDaySheets(
+        activeSheets,
+        fallbackEventName: settings.activeEventName.isNotEmpty ? settings.activeEventName : 'DaySheets',
+        fallbackDriverName: settings.defaultDriverName.isNotEmpty ? settings.defaultDriverName : 'Driver',
+      );
+
+      // Ha a felhasználó a Mégse gombra nyomott a mentés ablakban, csendesen kilépünk
+      if (savedPath == null) return;
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('download_success'.tr()), backgroundColor: Colors.green),
+        SnackBar(
+          content: Text('download_success'.tr()),
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'OPEN',
+            textColor: Colors.white,
+            onPressed: () {
+              OpenFilex.open(savedPath); // Fájl azonnali megnyitása Excelben
+            },
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -415,6 +436,7 @@ class _SheetsPageState extends State<SheetsPage> {
       );
     }
   }
+
 
   Widget _buildBadge(IconData icon, String text, Color color) {
     if (text.isEmpty) return const SizedBox.shrink();

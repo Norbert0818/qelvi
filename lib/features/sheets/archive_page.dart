@@ -6,7 +6,8 @@ import '../export/export_service.dart';
 import '../settings/settings_model.dart';
 import 'models/day_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
+import 'package:easy_localization/easy_localization.dart';
+import 'package:open_filex/open_filex.dart';
 
 class ArchivePage extends StatefulWidget {
   final SettingsModel settings;
@@ -117,7 +118,6 @@ class _ArchivePageState extends State<ArchivePage> {
     }
   }
 
-  // Exportáljuk az összes archivált lapot
   Future<void> _exportArchive() async {
     if (widget.settings.apiBaseUrl.isEmpty || widget.settings.apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -132,16 +132,54 @@ class _ArchivePageState extends State<ArchivePage> {
       final apiClient = ApiClient(baseUrl: widget.settings.apiBaseUrl, apiKey: widget.settings.apiKey);
       final exportService = ExportService(apiClient: apiClient);
 
-      // Kiterítjük a Map-et egy szimpla listává az exportáláshoz
       final sheetsToExport = _archivedEvents.values.expand((list) => list).toList();
 
-      await exportService.downloadDaySheets(sheetsToExport);
+      final savedPath = await exportService.downloadDaySheets(
+        sheetsToExport,
+        fallbackEventName: 'Archive',
+        fallbackDriverName: widget.settings.defaultDriverName.isNotEmpty ? widget.settings.defaultDriverName : 'Driver',
+      );
+
+      // Ha megszakította a mentést, kilépünk
+      if (savedPath == null) return;
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('archive_download_success'.tr()),
-          backgroundColor: Colors.green,
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'OPEN',
+            textColor: Colors.white,
+            onPressed: () async {
+              // 1. Megpróbáljuk megnyitni KIFEJEZETT Excel MIME-típussal
+              final result = await OpenFilex.open(
+                savedPath,
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              );
+
+              // 2. Ha nem sikerült megnyitni, azonnal kiírjuk a felhasználónak, hogy miért!
+              if (result.type != ResultType.done) {
+                if (!mounted) return;
+                String errorMsg = 'Nem sikerült megnyitni a fájlt.';
+                if (result.type == ResultType.noAppToOpen) {
+                  errorMsg = 'Nincs olyan alkalmazás (pl. Excel, Google Táblázatok) a telefonon, ami meg tudná nyitni!';
+                } else if (result.type == ResultType.permissionDenied) {
+                  errorMsg = 'Nincs jogosultság a fájl megnyitásához.';
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(errorMsg),
+                    backgroundColor: Colors.red.shade700,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+          ),
         ),
       );
     } catch (e) {
