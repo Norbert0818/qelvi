@@ -107,5 +107,12 @@
   "day_sheets": "Napi menetlevelek",
   "show_city_label": "Városnév megjelenítése",
   "show_city_desc": "Mutassa a települést is a menetleveleknél (Pl: Cluj Napoca, Str. ...)",
-  "tab_archive": "Archívum"
+  "tab_archive": "Archívum",
+  "share_btn": "Megosztás",
+  "share_email_subject": "Menetlevél küldése (Qelvi)",
+  "err_generate": "Hiba a generáláskor",
+  "what_to_send": "Mit szeretnél elküldeni?",
+  "send_full_event": "Teljes esemény küldése",
+  "sheets_count_label": "{count} menetlevél",
+  "send_days_count_btn": "Küldés ({count} nap)"
 }

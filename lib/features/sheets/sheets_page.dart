@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:share_plus/share_plus.dart'; // <--- MEGVAN AZ IMPORT
+import 'package:open_filex/open_filex.dart';
 
 import '../../core/config/env.dart';
 import '../../core/location/address_service.dart';
@@ -15,7 +17,6 @@ import '../settings/settings_page.dart';
 import 'day_sheet_editor_page.dart';
 import 'models/day_sheet.dart';
 import 'archive_page.dart';
-import 'package:open_filex/open_filex.dart';
 
 class SheetsPage extends StatefulWidget {
   const SheetsPage({super.key});
@@ -215,7 +216,7 @@ class _SheetsPageState extends State<SheetsPage> {
       );
 
       setState(() {
-        selectedTab = 2; // Frissítve: A beállítás fül indexe 1-ről 2-re változott!
+        selectedTab = 2; // Beállítás fül
       });
       return;
     }
@@ -387,13 +388,16 @@ class _SheetsPageState extends State<SheetsPage> {
     );
   }
 
+  // ============================================================================
+  // HAGYOMÁNYOS LETÖLTÉS (Mentés ablak)
+  // ============================================================================
   Future<void> _export() async {
     if (settings.apiBaseUrl.isEmpty || settings.apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('err_configure_api'.tr())),
       );
       setState(() {
-        selectedTab = 2; // Beállítás fül
+        selectedTab = 2;
       });
       return;
     }
@@ -403,14 +407,12 @@ class _SheetsPageState extends State<SheetsPage> {
       final exportService = ExportService(apiClient: apiClient);
       final activeSheets = sheets.where((s) => !s.isArchived && s.eventName == settings.activeEventName).toList();
 
-      // ITT A LÉNYEG: Átadjuk a beállításokból az aktív eseményt és sofőrt!
       final savedPath = await exportService.downloadDaySheets(
         activeSheets,
         fallbackEventName: settings.activeEventName.isNotEmpty ? settings.activeEventName : 'DaySheets',
         fallbackDriverName: settings.defaultDriverName.isNotEmpty ? settings.defaultDriverName : 'Driver',
       );
 
-      // Ha a felhasználó a Mégse gombra nyomott a mentés ablakban, csendesen kilépünk
       if (savedPath == null) return;
 
       if (!mounted) return;
@@ -424,7 +426,7 @@ class _SheetsPageState extends State<SheetsPage> {
             label: 'OPEN',
             textColor: Colors.white,
             onPressed: () {
-              OpenFilex.open(savedPath); // Fájl azonnali megnyitása Excelben
+              OpenFilex.open(savedPath);
             },
           ),
         ),
@@ -437,6 +439,58 @@ class _SheetsPageState extends State<SheetsPage> {
     }
   }
 
+  // ============================================================================
+  // ÚJ LOGIKA: MEGOSZTÁS KIVÁLASZTÓ ÉS GENERÁLÓ (Share_plus)
+  // ============================================================================
+  Future<void> _showShareDialog(List<DaySheet> activeSheets) async {
+    if (activeSheets.isEmpty) return;
+
+    final selectedSheets = await showModalBottomSheet<List<DaySheet>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _DaySelectionSheet(sheets: activeSheets),
+    );
+
+    if (selectedSheets == null || selectedSheets.isEmpty) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final apiClient = ApiClient(baseUrl: settings.apiBaseUrl, apiKey: settings.apiKey);
+      final exportService = ExportService(apiClient: apiClient);
+
+      final filePath = await exportService.downloadDaySheets(
+        selectedSheets,
+        fallbackEventName: settings.activeEventName.isNotEmpty ? settings.activeEventName : 'DaySheets',
+        fallbackDriverName: settings.defaultDriverName.isNotEmpty ? settings.defaultDriverName : 'Driver',
+        isSilentShare: true,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (filePath != null) {
+        await Share.shareXFiles(
+          [XFile(filePath)],
+          text: 'share_email_subject'.tr(),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${'err_generate'.tr()}: $e')),
+        );
+      }
+    }
+  }
 
   Widget _buildBadge(IconData icon, String text, Color color) {
     if (text.isEmpty) return const SizedBox.shrink();
@@ -460,7 +514,7 @@ class _SheetsPageState extends State<SheetsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Tracking card maradt a régi...
+        // Tracking card
         Container(
           margin: const EdgeInsets.only(bottom: 24),
           decoration: BoxDecoration(
@@ -600,7 +654,6 @@ class _SheetsPageState extends State<SheetsPage> {
               ),
             ),
             PopupMenuButton<String>(
-              // A 3 pötty színe mostantól a téma szövegszíne lesz:
               icon: Icon(Icons.more_vert, color: Theme.of(context).colorScheme.onSurface),
               color: Theme.of(context).cardColor,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -619,11 +672,47 @@ class _SheetsPageState extends State<SheetsPage> {
           ],
         ),
         const SizedBox(height: 12),
-        FilledButton.tonalIcon(
-          onPressed: _export,
-          icon: const Icon(Icons.download_rounded),
-          label: Text('export_excel'.tr()),
-          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade50, foregroundColor: Colors.green.shade700, alignment: Alignment.centerLeft, padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        // --- JAVÍTOTT: SZIMMETRIKUS DUPLA GOMB ---
+        SizedBox(
+          height: 56, // Határozott, egyforma magasság mindkét gombnak
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch, // Teljesen kitöltik a magasságot
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _export,
+                  icon: const Icon(Icons.download_rounded),
+                  label: FittedBox( // Megakadályozza a kétsoros törést
+                    fit: BoxFit.scaleDown,
+                    child: Text('export_excel'.tr()),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.green.shade50,
+                    foregroundColor: Colors.green.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8), // Csak minimális oldalsó margó
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _showShareDialog(activeSheets),
+                  icon: const Icon(Icons.send_rounded),
+                  label: FittedBox( // Megakadályozza a kétsoros törést
+                    fit: BoxFit.scaleDown,
+                    child: Text('share_btn'.tr()),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.blue.shade50,
+                    foregroundColor: Colors.blue.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8), // Csak minimális oldalsó margó
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
 
@@ -712,7 +801,6 @@ class _SheetsPageState extends State<SheetsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      // --- ULTRA-LETISZTULT, PRÉMIUM APPBAR ---
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
@@ -738,7 +826,6 @@ class _SheetsPageState extends State<SheetsPage> {
               ),
             ),
             const SizedBox(width: 12),
-            // Törölve a color: Colors.black87, így automatikusan vált a témához!
             Text(
               'Qelvi',
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5, color: Theme.of(context).colorScheme.onSurface),
@@ -751,7 +838,7 @@ class _SheetsPageState extends State<SheetsPage> {
               margin: const EdgeInsets.only(right: 16),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Theme.of(context).cardColor, // <-- Dinamikus kártyaszín
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Theme.of(context).dividerColor, width: 1.5),
               ),
@@ -769,14 +856,12 @@ class _SheetsPageState extends State<SheetsPage> {
         ],
       ),
 
-      // --- JAVÍTOTT BODY LOGIKA (Kezeli mind a 3 fület!) ---
       body: selectedTab == 0
           ? _buildSheetsTab()
           : selectedTab == 1
-          ? ArchivePage(settings: settings, onDataChanged: _loadData) // <--- Az új középső fül megjelenítése
+          ? ArchivePage(settings: settings, onDataChanged: _loadData)
           : _buildSettingsTab(),
 
-      // --- INTELIGENS ALSÓ NAVIGÁCIÓS SÁV ---
       bottomNavigationBar: NavigationBar(
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 10,
@@ -785,24 +870,20 @@ class _SheetsPageState extends State<SheetsPage> {
         onDestinationSelected: (index) {
           setState(() {
             selectedTab = index;
-            // Ha a menetlevelekre (0) vagy az archívumra (1) kattint, azonnal töltsön be friss adatokat
             if (index == 0 || index == 1) _loadData();
           });
         },
         destinations: [
-          // 0. INDEX: Menetlevelek fül
           NavigationDestination(
             icon: const Icon(Icons.table_chart_outlined),
             selectedIcon: const Icon(Icons.table_chart, color: Colors.blue),
             label: 'tab_sheets'.tr(),
           ),
-          // --- ÚJ: 1. INDEX: Archívum fül beszúrva KÖZÉPRE ---
           NavigationDestination(
             icon: const Icon(Icons.archive_outlined),
             selectedIcon: const Icon(Icons.archive, color: Colors.blue),
-            label: 'tab_archive'.tr(), // <--- Új fordítási kulcs
+            label: 'tab_archive'.tr(),
           ),
-          // 2. INDEX: Beállítások fül
           NavigationDestination(
             icon: const Icon(Icons.settings_outlined),
             selectedIcon: const Icon(Icons.settings, color: Colors.blue),
@@ -810,6 +891,116 @@ class _SheetsPageState extends State<SheetsPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// --- WIDGET: A felugró ablak a napok kiválasztásához ---
+class _DaySelectionSheet extends StatefulWidget {
+  final List<DaySheet> sheets;
+  const _DaySelectionSheet({required this.sheets});
+
+  @override
+  State<_DaySelectionSheet> createState() => _DaySelectionSheetState();
+}
+
+class _DaySelectionSheetState extends State<_DaySelectionSheet> {
+  bool _selectAll = true;
+  late Set<String> _selectedDates;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDates = widget.sheets.map((s) => s.date).toSet();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uniqueDates = widget.sheets.map((s) => s.date).toSet().toList();
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Text('what_to_send'.tr(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+
+            SwitchListTile(
+              title: Text('send_full_event'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('sheets_count_label'.tr(namedArgs: {'count': widget.sheets.length.toString()})),
+              value: _selectAll,
+              activeColor: Colors.blue.shade600,
+              onChanged: (val) {
+                setState(() {
+                  _selectAll = val;
+                  if (val) {
+                    _selectedDates = widget.sheets.map((s) => s.date).toSet();
+                  } else {
+                    _selectedDates.clear();
+                  }
+                });
+              },
+            ),
+            const Divider(),
+
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: uniqueDates.length,
+                itemBuilder: (context, index) {
+                  final date = uniqueDates[index];
+                  final isSelected = _selectedDates.contains(date);
+                  return CheckboxListTile(
+                    title: Text(date, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    value: isSelected,
+                    activeColor: Colors.blue.shade600,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _selectedDates.add(date);
+                        } else {
+                          _selectedDates.remove(date);
+                          _selectAll = false;
+                        }
+                        if (_selectedDates.length == uniqueDates.length) _selectAll = true;
+                      });
+                    },
+                  );
+                },
+              ),
+            ),
+
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _selectedDates.isEmpty ? null : () {
+                      final toExport = widget.sheets.where((s) => _selectedDates.contains(s.date)).toList();
+                      Navigator.pop(context, toExport);
+                    },
+                    icon: const Icon(Icons.send_rounded),
+                    label: Text('send_days_count_btn'.tr(namedArgs: {'count': _selectedDates.length.toString()})),
+                    style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

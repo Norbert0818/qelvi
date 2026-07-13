@@ -107,5 +107,12 @@
   "day_sheets": "Day sheets",
   "show_city_label": "Display city name",
   "show_city_desc": "Include the municipality in the trip logs (e.g., Cluj Napoca, Str. ...)",
-  "tab_archive": "Archive"
+  "tab_archive": "Archive",
+  "share_btn": "Share",
+  "share_email_subject": "Sending Day Sheets (Qelvi)",
+  "err_generate": "Error during generation",
+  "what_to_send": "What do you want to send?",
+  "send_full_event": "Send full event",
+  "sheets_count_label": "{count} day sheets",
+  "send_days_count_btn": "Send ({count} days)"
 }

@@ -107,5 +107,12 @@
   "day_sheets": "Foi de parcurs",
   "show_city_label": "Afișare localitate",
   "show_city_desc": "Include numele localității în foaia de parcurs (ex: Cluj Napoca, Str. ...)",
-  "tab_archive": "Arhivă"
+  "tab_archive": "Arhivă",
+  "share_btn": "Distribuie",
+  "share_email_subject": "Trimitere Foaie de Parcurs (Qelvi)",
+  "err_generate": "Eroare la generare",
+  "what_to_send": "Ce dorești să trimiți?",
+  "send_full_event": "Trimite tot evenimentul",
+  "sheets_count_label": "{count} foi de parcurs",
+  "send_days_count_btn": "Trimite ({count} zile)"
 }
