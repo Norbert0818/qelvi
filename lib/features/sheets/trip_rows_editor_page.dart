@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart'; // <--- ÚJ: Ezzel kérjük le a GPS-ből a tiszta városnevet!
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/day_sheet.dart';
 import 'models/trip_row.dart';
 import 'package:easy_localization/easy_localization.dart';
+
+// Importáljuk a központi tisztítót!
+import '../../core/location/address_service.dart';
 
 class _RowWrapper {
   final Key key;
@@ -32,8 +34,6 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
   late List<_RowWrapper> wrappedRows;
   Position? _currentPosition;
 
-  // --- ÚJ: A tiszta GPS városneved (pl. "Zalău") ---
-  String _detectedGpsCity = '';
   bool _showCity = true;
   bool _isLoading = true;
 
@@ -46,6 +46,7 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
       return _RowWrapper(
         key: UniqueKey(),
         row: TripRow(
+          // Itt már CSAK a letisztított meglévő adatot töltjük be, nem bántjuk!
           departurePlace: r.departurePlace,
           departureTime: r.departureTime,
           arrivalPlace: r.arrivalPlace,
@@ -56,7 +57,6 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
     }).toList();
   }
 
-  // --- A KÖZPONTI MOTOR (Beállítás + GPS + Városnév feloldó) ---
   Future<void> _initEngine() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -70,20 +70,8 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
       if (perm == LocationPermission.whileInUse || perm == LocationPermission.always) {
         Position? pos = await Geolocator.getLastKnownPosition();
         pos ??= await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 3));
-
         if (pos != null) {
           _currentPosition = pos;
-
-          // --- ITT KÉRJÜK LE A MŰHOLDBÓL A VÁROSOD NEVÉT ---
-          final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
-          if (placemarks.isNotEmpty) {
-            final p = placemarks.first;
-            final resolvedCity = (p.locality ?? p.subAdministrativeArea ?? '').trim();
-            if (resolvedCity.isNotEmpty) {
-              _detectedGpsCity = resolvedCity;
-              print("📍 [GPS Város azonosítva]: '$_detectedGpsCity'");
-            }
-          }
         }
       }
     } catch (e) {
@@ -105,13 +93,8 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
   }
 
   void _save() {
-    // Mielőtt elmentjük, az összes soron kíméletlenül átfuttatjuk a formázót!
-    final updatedRows = wrappedRows.map((w) {
-      final r = w.row;
-      r.departurePlace = _normalizeAddress(r.departurePlace, _showCity, _detectedGpsCity);
-      r.arrivalPlace = _normalizeAddress(r.arrivalPlace, _showCity, _detectedGpsCity);
-      return r;
-    }).toList();
+    // --- JAVÍTVA: Csak pontosan azt mentjük, ami a mezőkben van! Nincs utólagos felülírás! ---
+    final updatedRows = wrappedRows.map((w) => w.row).toList();
 
     final updatedSheet = DaySheet(
       id: widget.daySheet.id,
@@ -142,7 +125,12 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List suggestions = data['suggestions'] ?? [];
-        return suggestions.map((s) => s['text'].toString()).toList();
+
+        // --- JAVÍTVA: Átfuttatjuk az Esri találatokat a Tisztítón, mielőtt megjelenne a listában! ---
+        final cleanSuggestions = suggestions.map((s) => AddressCleaner.clean(s['text'].toString(), _showCity)).toList();
+
+        // Eltávolítjuk az esetleges duplikációkat
+        return cleanSuggestions.toSet().toList();
       }
     } catch (_) {}
     return [];
@@ -180,11 +168,9 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
 
             final item = wrappedRows[index];
             return _TripRowCard(
-              key: item.key, // <--- HIBÁTLAN KEY ÁTADÁS
+              key: item.key,
               index: index,
               row: item.row,
-              showCity: _showCity,
-              gpsCity: _detectedGpsCity,
               onDelete: () => setState(() => wrappedRows.removeAt(index)),
               suggestionsCallback: _getEsriSuggestions,
             );
@@ -198,8 +184,6 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
 class _TripRowCard extends StatefulWidget {
   final int index;
   final TripRow row;
-  final bool showCity;
-  final String gpsCity;
   final VoidCallback onDelete;
   final Future<List<String>> Function(String) suggestionsCallback;
 
@@ -207,8 +191,6 @@ class _TripRowCard extends StatefulWidget {
     super.key,
     required this.index,
     required this.row,
-    required this.showCity,
-    required this.gpsCity,
     required this.onDelete,
     required this.suggestionsCallback,
   });
@@ -227,9 +209,9 @@ class _TripRowCardState extends State<_TripRowCard> {
   @override
   void initState() {
     super.initState();
-    _depPlaceCtrl = TextEditingController(text: _normalizeAddress(widget.row.departurePlace, widget.showCity, widget.gpsCity));
+    _depPlaceCtrl = TextEditingController(text: widget.row.departurePlace);
     _depTimeCtrl = TextEditingController(text: widget.row.departureTime);
-    _arrPlaceCtrl = TextEditingController(text: _normalizeAddress(widget.row.arrivalPlace, widget.showCity, widget.gpsCity));
+    _arrPlaceCtrl = TextEditingController(text: widget.row.arrivalPlace);
     _arrTimeCtrl = TextEditingController(text: widget.row.arrivalTime);
     _kmCtrl = TextEditingController(text: widget.row.km == 0 ? '' : widget.row.km.toString());
   }
@@ -250,12 +232,12 @@ class _TripRowCardState extends State<_TripRowCard> {
       labelText: label,
       prefixIcon: Icon(icon, size: 20, color: Colors.blue.shade700),
       filled: true,
-      fillColor: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50, // <-- CSERÉLVE
+      fillColor: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 1), // <-- CSERÉLVE
+        borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 1),
       ),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.blue.shade400, width: 2)),
     );
@@ -282,9 +264,9 @@ class _TripRowCardState extends State<_TripRowCard> {
       suggestionsCallback: (pattern) async => await widget.suggestionsCallback(pattern),
       itemBuilder: (context, suggestion) => ListTile(visualDensity: VisualDensity.compact, leading: const Icon(Icons.location_on, color: Colors.blue, size: 18), title: Text(suggestion, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
       onSelected: (suggestion) {
-        final formatted = _normalizeAddress(suggestion, widget.showCity, widget.gpsCity);
-        controller.text = formatted;
-        onSaved(formatted);
+        // A lista elemei itt már gyönyörűen tiszták, csak betöltjük!
+        controller.text = suggestion;
+        onSaved(suggestion);
       },
       builder: (context, ctrl, focusNode) => TextField(controller: ctrl, focusNode: focusNode, decoration: _modernInput(label, icon), onChanged: onSaved),
       emptyBuilder: (context) => const SizedBox.shrink(),
@@ -317,41 +299,4 @@ class _TripRowCardState extends State<_TripRowCard> {
       ),
     );
   }
-}
-
-// ============================================================================
-// AZ UNIVERZÁLIS CÍM-POLÍROZÓ (Bármilyen fura Esri formátumot gatyába ráz)
-// ============================================================================
-String _normalizeAddress(String rawText, bool showCity, String gpsCity) {
-  if (rawText.trim().isEmpty) return '';
-
-  // 1. Alapvető cserék
-  String text = rawText.trim();
-  text = text.replaceAll(RegExp(r'\bStrada\b', caseSensitive: false), 'Str.');
-  text = text.replaceAll(RegExp(r'\bBulevardul\b', caseSensitive: false), 'Bd.');
-  text = text.replaceAll(RegExp(r'\s+'), ' ');
-
-  if (showCity) {
-    // Ha kéri a várost, de a kapott szövegben MÉG NINCS benne (pl. "Str. Olarilor 36")
-    if (!text.contains(',')) {
-      if (gpsCity.isNotEmpty) {
-        return '$gpsCity, $text'; // <--- ITT CSAPJUK HOZZÁ A GPS VÁROST: "Zalău, Str. Olarilor 36"
-      }
-    } else {
-      // Ha az Esri fordítva adta vissza: "Str. Olarilor 36, Zalău" -> Megfordítjuk!
-      final chunks = text.split(',').map((e) => e.trim()).toList();
-      if (chunks.length == 2 && !chunks[0].toLowerCase().contains(gpsCity.toLowerCase())) {
-        if (!RegExp(r'^\d+$').hasMatch(chunks[1])) {
-          return '${chunks[1]}, ${chunks[0]}';
-        }
-      }
-    }
-  } else {
-    // Ha NEM kéri a várost, de a szövegben benne van (pl. "Zalău, Str. Olarilor 36") -> Levágjuk az elejét!
-    if (text.contains(',')) {
-      return text.split(',').last.trim(); // Eredmény: "Str. Olarilor 36"
-    }
-  }
-
-  return text.trim();
 }
