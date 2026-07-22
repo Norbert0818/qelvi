@@ -1,6 +1,6 @@
 // lib/core/tracking/foreground_task_handler.dart
 import 'dart:async';
-import 'package:home_widget/home_widget.dart';
+// import 'package:home_widget/home_widget.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -112,9 +112,9 @@ class MyTaskHandler extends TaskHandler {
       prefs.setDouble('distance_km', km);
     });
 
-    HomeWidget.saveWidgetData<String>('status_text', statusText).then((_) {
-      HomeWidget.updateWidget(name: 'QelviWidgetProvider');
-    });
+    // HomeWidget.saveWidgetData<String>('status_text', statusText).then((_) {
+    //   HomeWidget.updateWidget(name: 'QelviWidgetProvider');
+    // });
   }
 
   @override

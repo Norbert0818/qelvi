@@ -8,84 +8,70 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-// ============================================================================
-// ÚJ KÖZPONTI CÍMTISZTÍTÓ MOTOR
-// ============================================================================
 class AddressCleaner {
   static String clean(String raw, bool showCity) {
     if (raw.trim().isEmpty) return '';
     if (raw == 'Unknown location' || raw == 'Locație necunoscută') return raw;
 
-    // Vesszők mentén darabokra szedjük a nyers címet
-    List<String> parts = raw.split(',').map((e) => e.trim()).toList();
-    if (parts.isEmpty) return '';
-
-    // --- 1. INTELLIGENS HELYNÉV FELISMERŐ ---
-    // Megnézzük a legelső elemet (pl. "Hotel Radisson Blu" vagy "OMV Station")
-    final firstPartLower = parts[0].toLowerCase();
-    final isPlace = firstPartLower.contains('hotel') ||
-        firstPartLower.contains('pensiune') ||
-        firstPartLower.contains('panzió') ||
-        firstPartLower.contains('panzio') ||
-        firstPartLower.contains('motel') ||
-        firstPartLower.contains('omv') ||
-        firstPartLower.contains('mol') ||
-        firstPartLower.contains('petrom') ||
-        firstPartLower.contains('rompetrol') ||
-        firstPartLower.contains('lukoil') ||
-        firstPartLower.contains('socar') ||
-        firstPartLower.contains('peco') ||
-        firstPartLower.contains('airport') ||
-        firstPartLower.contains('aeroport') ||
-        firstPartLower.contains('kaufland') ||
-        firstPartLower.contains('lidl') ||
-        firstPartLower.contains('auchan') ||
-        firstPartLower.contains('carrefour') ||
-        firstPartLower.contains('penny') ||
-        firstPartLower.contains('profi') ||
-        firstPartLower.contains('mega image');
-
-    if (isPlace) {
-      // Ha ez egy ismert hely, eldobunk minden utótagot (utca, szám, város)!
-      // Példa: "Hotel Radisson Blu, Aleea Stadionului 1, Cluj" -> "Hotel Radisson Blu"
-      return parts[0];
-    }
-
-    // --- 2. HA NORMÁL UTCA/CÍM ---
-    // Alapvető rövidítések beállítása
     String text = raw.trim();
     text = text.replaceAll(RegExp(r'\bStrada\b', caseSensitive: false), 'Str.');
     text = text.replaceAll(RegExp(r'\bBulevardul\b', caseSensitive: false), 'Bd.');
     text = text.replaceAll(RegExp(r'\bBd\.\b', caseSensitive: false), 'Bd.');
 
-    parts = text.split(',').map((e) => e.trim()).toList();
+    List<String> parts = text.split(',').map((e) => e.trim()).toList();
 
-    // Kíméletlenül kidobjuk az irányítószámokat és az országot!
+    final containsKeywords = [
+      'hotel', 'pensiune', 'panzió', 'panzio', 'motel', 'hostel', 'resort',
+      'petrom', 'rompetrol', 'lukoil', 'socar',
+      'airport', 'aeroport', 'kaufland', 'lidl', 'auchan', 'carrefour', 'penny', 'profi', 'mega image'
+    ];
+    final exactMatchKeywords = ['omv', 'mol', 'peco', 'gaz'];
+
+    for (String part in parts) {
+      final pLower = part.toLowerCase();
+
+      for (String kw in containsKeywords) {
+        if (pLower.contains(kw)) {
+          return part;
+        }
+      }
+
+      for (String kw in exactMatchKeywords) {
+        if (RegExp('\\b$kw\\b').hasMatch(pLower)) {
+          return part;
+        }
+      }
+    }
+
     parts = parts.where((p) {
-      if (RegExp(r'^\d{4,6}$').hasMatch(p)) return false; // Irányítószám -> KUKA
+      if (RegExp(r'^\d{4,6}$').hasMatch(p)) return false;
       final up = p.toUpperCase();
-      if (['ROU', 'ROMANIA', 'ROMÂNIA', 'HU', 'HUN', 'MAGYARORSZÁG'].contains(up)) return false; // Ország -> KUKA
+      if (['ROU', 'ROMANIA', 'ROMÂNIA', 'HU', 'HUN', 'MAGYARORSZÁG'].contains(up)) return false;
       return true;
     }).toList();
 
     if (parts.isEmpty) return '';
 
-    // Beállítás szerinti intelligens vágás
-    if (showCity) {
-      // Ha kéri a várost, maximum 3 adatot hagyunk meg (Név, Utca, Város)
-      if (parts.length > 3) parts = parts.sublist(0, 3);
-    } else {
-      // Ha NEM kéri a várost, szigorúbban vágunk:
-      if (parts.length >= 3) {
-        // Ha van Név + Utca + Város -> Marad: Név + Utca
-        parts = parts.sublist(0, 2);
-      } else if (parts.length == 2) {
-        // Ha csak Utca + Város van -> Marad: Utca
-        parts = parts.sublist(0, 1);
-      }
-    }
+    if (!showCity) {
+      bool firstIsStreet = RegExp(r'\d').hasMatch(parts[0]) ||
+          parts[0].toLowerCase().startsWith('str.') ||
+          parts[0].toLowerCase().startsWith('bd.') ||
+          parts[0].toLowerCase().startsWith('calea') ||
+          parts[0].toLowerCase().startsWith('piața') ||
+          parts[0].toLowerCase().startsWith('dn') ||
+          parts[0].toLowerCase().startsWith('dj') ||
+          parts[0].toLowerCase().startsWith('dc');
 
-    return parts.join(', ');
+      if (firstIsStreet) {
+        return parts[0];
+      } else {
+        if (parts.length >= 2) return '${parts[0]}, ${parts[1]}';
+        return parts[0];
+      }
+    } else {
+      if (parts.length > 3) return parts.sublist(0, 3).join(', ');
+      return parts.join(', ');
+    }
   }
 }
 
@@ -110,7 +96,7 @@ class AddressService {
     final url =
         'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
         '?location=${pos.latitude},${pos.longitude}'
-        '&radius=10'
+        '&radius=60'
         '&key=$apiKey';
 
     try {
@@ -161,23 +147,23 @@ class AddressService {
 
       final street = (placemark.thoroughfare ?? placemark.street ?? '').trim();
       final houseNumber = (placemark.subThoroughfare ?? '').trim();
-      final name = (placemark.name ?? '').trim();
+      String name = (placemark.name ?? '').trim();
       final city = (placemark.locality ?? '').trim();
 
-      if (street.isNotEmpty && houseNumber.isNotEmpty) {
-        return '$street $houseNumber, $city';
+      if (name.contains('+') || name.length <= 3) {
+        name = '';
       }
 
-      if (street.isNotEmpty) {
-        return '$street, $city';
-      }
+      List<String> combined = [];
 
-      if (name.isNotEmpty) {
-        return '$name, $city';
-      }
+      if (name.isNotEmpty && name != street) combined.add(name);
 
-      if (city.isNotEmpty) {
-        return city;
+      String streetFull = '$street $houseNumber'.trim();
+      if (streetFull.isNotEmpty) combined.add(streetFull);
+      if (city.isNotEmpty) combined.add(city);
+
+      if (combined.isNotEmpty) {
+        return combined.join(', ');
       }
 
       return 'unknown_location'.tr();
