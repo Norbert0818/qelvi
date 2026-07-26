@@ -126,15 +126,16 @@ class TrackingService {
       }
     }
 
+    // --- APPLE JAVÍTÁS: Nem dobjuk ki automatikusan a Beállításokba, ha tiltva van! ---
     if (permission == LocationPermission.deniedForever) {
-      await Geolocator.openAppSettings();
       return false;
     }
 
     if (permission == LocationPermission.whileInUse) {
       final alwaysStatus = await Permission.locationAlways.request();
-      if (!alwaysStatus.isGranted && Platform.isIOS) {
-        await openAppSettings();
+      // --- APPLE JAVÍTÁS: Itt sem nyitjuk meg erőszakosan a Settings-et! ---
+      if (!alwaysStatus.isGranted) {
+        return false;
       }
     }
 

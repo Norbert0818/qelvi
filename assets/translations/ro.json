@@ -115,5 +115,9 @@
   "send_full_event": "Trimite tot evenimentul",
   "sheets_count_label": "{count} foi de parcurs",
   "send_days_count_btn": "Trimite ({count} zile)",
-  "starting_odometer": "Kilometraj de pornire"
+  "starting_odometer": "Kilometraj de pornire",
+  "continue_btn": "Continuă",
+  "permission_required_title": "Permisiune locație necesară",
+  "permission_required_desc": "Qelvi necesită acces 'Întotdeauna' la locație în fundal pentru a înregistra distanța parcursă. Vă rugăm să activați din Setări.",
+  "open_settings": "Deschide Setări"
 }

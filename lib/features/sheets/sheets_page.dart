@@ -17,6 +17,8 @@ import '../settings/settings_page.dart';
 import 'day_sheet_editor_page.dart';
 import 'models/day_sheet.dart';
 import 'archive_page.dart';
+import 'dart:io';
+import 'package:geolocator/geolocator.dart';
 
 class SheetsPage extends StatefulWidget {
   const SheetsPage({super.key});
@@ -206,7 +208,6 @@ class _SheetsPageState extends State<SheetsPage> {
   }
 
   Future<void> _startTracking() async {
-    // --- VÉDŐZÁR 1: Ha már dolgozik a gomb vagy fut a mérés, nem engedjük újra megnyomni ---
     if (_isBusy || tracking.isTracking) return;
 
     if (settings.defaultCarPlate.isEmpty ||
@@ -222,31 +223,37 @@ class _SheetsPageState extends State<SheetsPage> {
       );
 
       setState(() {
-        selectedTab = 2; // Beállítás fül
+        selectedTab = 2;
       });
       return;
     }
 
-    bool hasPerms = await _trackingService.hasRequiredPermissions();
+    // --- APPLE & GOOGLE COMPLIANT LOGIKA ---
+    // A Google Play megköveteli a saját elő-ablakot (Prominent Disclosure).
+    // Az Apple viszont tiltja a Mégse gombot és az Accept szót.
+    // EZÉRT: Az elő-ablakot CSAK ANDROIDON mutatjuk meg, iOS-en egyből a gyári kérést indítjuk!
+    if (Platform.isAndroid) {
+      bool hasPerms = await _trackingService.hasRequiredPermissions();
 
-    if (!hasPerms) {
-      final userAgreed = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text('location_disclosure_title'.tr()),
-          content: Text('location_disclosure_desc'.tr()),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: Text('cancel'.tr())),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text('accept'.tr())),
-          ],
-        ),
-      );
+      if (!hasPerms) {
+        final userAgreed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Text('location_disclosure_title'.tr()),
+            content: Text('location_disclosure_desc'.tr()),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: Text('cancel'.tr())),
+              // Az Apple indoklása alapján az "Accept" szót lecseréltük "Continue"-ra:
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: Text('continue_btn'.tr())),
+            ],
+          ),
+        );
 
-      if (userAgreed != true) return;
+        if (userAgreed != true) return;
+      }
     }
 
-    // --- VÉDŐZÁR 2: Letiltjuk a gombot, amíg az iOS indítja a háttérszervizt ---
     setState(() => _isBusy = true);
     try {
       final result = await _trackingService.startTrip();
@@ -261,13 +268,39 @@ class _SheetsPageState extends State<SheetsPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${tr('err_start_error')}: $e')),
-      );
+
+      // --- APPLE JAVÍTÁS: Ha nincs engedély, illedelmesen MEGKÉRDEZZÜK, hogy megnyissuk-e a Beállításokat ---
+      if (e.toString().contains(tr('err_location_permission'))) {
+        _showSettingsDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${tr('err_start_error')}: $e')),
+        );
+      }
     } finally {
-      // --- VÉDŐZÁR 3: Bármi történik (siker vagy hiba), a végén feloldjuk a gombot ---
       if (mounted) setState(() => _isBusy = false);
     }
+  }
+
+  // --- ÚJ: Apple-kompatibilis ablak, ami engedélyt kér a Beállítások megnyitásához ---
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('permission_required_title'.tr()),
+        content: Text('permission_required_desc'.tr()),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('cancel'.tr())),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Geolocator.openAppSettings(); // Csak akkor nyitjuk meg, ha a felhasználó rányomott!
+            },
+            child: Text('open_settings'.tr()),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _stopTracking() async {

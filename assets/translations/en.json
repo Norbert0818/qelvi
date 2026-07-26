@@ -115,5 +115,9 @@
   "send_full_event": "Send full event",
   "sheets_count_label": "{count} day sheets",
   "send_days_count_btn": "Send ({count} days)",
-  "starting_odometer": "Starting odometer"
+  "starting_odometer": "Starting odometer",
+  "continue_btn": "Continue",
+  "permission_required_title": "Location Permission Required",
+  "permission_required_desc": "Qelvi needs 'Always' location access in the background to track your driving distance and route. Please enable it in Settings.",
+  "open_settings": "Open Settings"
 }

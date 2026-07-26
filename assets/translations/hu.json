@@ -115,5 +115,9 @@
   "send_full_event": "Teljes esemény küldése",
   "sheets_count_label": "{count} menetlevél",
   "send_days_count_btn": "Küldés ({count} nap)",
-  "starting_odometer": "Induló kilométeróra"
+  "starting_odometer": "Induló kilométeróra",
+  "continue_btn": "Tovább",
+  "permission_required_title": "Helymeghatározás szükséges",
+  "permission_required_desc": "A Qelvi-nek 'Mindig' engedélyre van szüksége a háttérben, hogy vezetés közben mérni tudja a megtett távolságot. Kérjük, engedélyezze a Beállításokban.",
+  "open_settings": "Beállítások megnyitása"
 }
