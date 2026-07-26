@@ -114,5 +114,6 @@
   "what_to_send": "Ce dorești să trimiți?",
   "send_full_event": "Trimite tot evenimentul",
   "sheets_count_label": "{count} foi de parcurs",
-  "send_days_count_btn": "Trimite ({count} zile)"
+  "send_days_count_btn": "Trimite ({count} zile)",
+  "starting_odometer": "Kilometraj de pornire"
 }

@@ -1,8 +1,9 @@
 // lib/features/sheets/day_sheet_details_page.dart
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <--- ÚJ: Hozzáadva a Settings eléréséhez
 import 'models/day_sheet.dart';
 import 'package:flutter/services.dart';
-import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
+import 'package:easy_localization/easy_localization.dart';
 
 class DaySheetDetailsPage extends StatefulWidget {
   final DaySheet daySheet;
@@ -17,12 +18,11 @@ class DaySheetDetailsPage extends StatefulWidget {
 }
 
 class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
-  // Szöveges controllerek a többi mezőhöz
   late TextEditingController carNumberController;
   late TextEditingController driverNameController;
   late TextEditingController eventNameController;
+  late TextEditingController odometerController;
 
-  // --- JAVÍTÁS 1: Nullázható típusok (String?) ---
   String? _selectedFuelType;
   String? _selectedVehicleType;
 
@@ -36,7 +36,15 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
     driverNameController = TextEditingController(text: widget.daySheet.driverName);
     eventNameController = TextEditingController(text: widget.daySheet.eventName);
 
-    // --- JAVÍTÁS 2: Csak akkor állítjuk be, ha érvényes, különben marad null ---
+    odometerController = TextEditingController(
+        text: widget.daySheet.startingOdometer == 0 ? '' : widget.daySheet.startingOdometer.toString()
+    );
+
+    // --- ÚJ LOGIKA: Ha üres a kilométer (0), azonnal behúzzuk a Settings-ből! ---
+    if (widget.daySheet.startingOdometer == 0) {
+      _loadDefaultOdometer();
+    }
+
     if (_vehicleOptions.contains(widget.daySheet.vehicleType)) {
       _selectedVehicleType = widget.daySheet.vehicleType;
     }
@@ -46,24 +54,36 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
     }
   }
 
+  // Ezt a függvényt hívjuk meg, ha nincs még elmentve a napi km
+  Future<void> _loadDefaultOdometer() async {
+    final prefs = await SharedPreferences.getInstance();
+    final defaultOdo = prefs.getInt('default_starting_odometer') ?? 0;
+    if (defaultOdo > 0 && mounted) {
+      setState(() {
+        odometerController.text = defaultOdo.toString();
+      });
+    }
+  }
+
   @override
   void dispose() {
     carNumberController.dispose();
     driverNameController.dispose();
     eventNameController.dispose();
+    odometerController.dispose();
     super.dispose();
   }
 
   void _save() {
     final updated = DaySheet(
       id: widget.daySheet.id,
-      // --- JAVÍTÁS 5: Ha null, üres stringet adunk át mentéskor ---
       vehicleType: _selectedVehicleType ?? '',
       fuelType: _selectedFuelType ?? '',
       date: widget.daySheet.date,
       carNumber: carNumberController.text.trim(),
       driverName: driverNameController.text.trim(),
       eventName: eventNameController.text.trim(),
+      startingOdometer: int.tryParse(odometerController.text.trim()) ?? 0,
       isArchived: widget.daySheet.isArchived,
       rows: widget.daySheet.rows,
     );
@@ -71,7 +91,6 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
     Navigator.pop(context, updated);
   }
 
-  // --- JAVÍTÁS 3: Az ikon is tudja kezelni a null (üres) értéket ---
   IconData _getVehicleIcon(String? type) {
     switch (type) {
       case 'Passenger': return Icons.directions_car_rounded;
@@ -87,14 +106,13 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
     return Icons.local_gas_station_rounded;
   }
 
-  // Modern input decoration helper
   InputDecoration _modernInput(String label, IconData icon, Color iconColor) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon, size: 22, color: iconColor),
       filled: true,
-      fillColor: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50, // <-- CSERÉLVE
+      fillColor: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -102,7 +120,7 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 1), // <-- CSERÉLVE
+        borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -202,7 +220,17 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // --- JAVÍTÁS 4: Jármű típus Dropdown (Üres alapérték + Hint + Fordítás) ---
+                  TextField(
+                    controller: odometerController,
+                    decoration: _modernInput('starting_odometer'.tr(), Icons.speed, Colors.red.shade500),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(7),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
                   DropdownButtonFormField<String>(
                     value: _selectedVehicleType,
                     hint: Text('select_hint'.tr()),
@@ -219,7 +247,6 @@ class _DaySheetDetailsPageState extends State<DaySheetDetailsPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // --- JAVÍTÁS 4: Üzemanyag típus Dropdown (Üres alapérték + Hint + Fordítás) ---
                   DropdownButtonFormField<String>(
                     value: _selectedFuelType,
                     hint: Text('select_hint'.tr()),

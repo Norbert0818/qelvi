@@ -10,7 +10,7 @@ import '../location/address_service.dart';
 import '../storage/prefs_service.dart';
 import '../../features/sheets/models/day_sheet.dart';
 import '../../features/sheets/models/trip_row.dart';
-import 'package:easy_localization/easy_localization.dart'; // Importálva a fordításhoz
+import 'package:easy_localization/easy_localization.dart';
 
 class TrackingSnapshot {
   final bool isTracking;
@@ -202,7 +202,6 @@ class TrackingService {
     final savedStartTimeRaw = prefs.getString(_startTimeKey);
     final savedStartAddress = prefs.getString(_startAddressKey);
 
-    // Biztosítjuk, hogy a lementett érték is szigorúan kerekített legyen!
     final savedDistanceKm = (prefs.getDouble(_distanceKmKey) ?? 0.0).roundToDouble();
 
     await FlutterForegroundTask.stopService();
@@ -244,6 +243,30 @@ class TrackingService {
     if (sheetIndex >= 0) {
       activeSheet = allSheets[sheetIndex];
     } else {
+      // --- INTELLIGENS SZÁMOLÓ (GPS Trackingnél is) ---
+      int calculatedOdo = prefs.getInt('default_starting_odometer') ?? 0;
+
+      final carSheets = allSheets.where((s) => s.carNumber == defaultCarNumber).toList();
+      if (carSheets.isNotEmpty) {
+        carSheets.sort((a, b) {
+          try {
+            final pA = a.date.split('.');
+            final pB = b.date.split('.');
+            final dA = DateTime(int.parse(pA[2]), int.parse(pA[1]), int.parse(pA[0]));
+            final dB = DateTime(int.parse(pB[2]), int.parse(pB[1]), int.parse(pB[0]));
+            return dB.compareTo(dA);
+          } catch (_) { return 0; }
+        });
+
+        final lastSheet = carSheets.first;
+        // JAVÍTVA ITT IS:
+        if (lastSheet.startingOdometer > 0) {
+          calculatedOdo = lastSheet.startingOdometer + lastSheet.totalKm.toInt();
+        } else {
+          calculatedOdo = prefs.getInt('default_starting_odometer') ?? 0;
+        }
+      }
+
       activeSheet = DaySheet(
         id: DateTime.now().millisecondsSinceEpoch,
         vehicleType: defaultVehicleType,
@@ -252,6 +275,7 @@ class TrackingService {
         carNumber: defaultCarNumber,
         driverName: defaultDriverName,
         eventName: activeEventName,
+        startingOdometer: calculatedOdo,
         rows: [],
       );
       allSheets.insert(0, activeSheet);
@@ -296,7 +320,6 @@ class TrackingService {
     final savedLegacyMeters = prefs.getDouble(_totalDistanceLegacyKey);
 
     double km = 0.0;
-    // --- ÉLŐ MÉRÉS: Visszatöltéskor is megtartjuk a pontos tizedeseket! ---
     if (savedDistanceKm != null) km = savedDistanceKm;
     if (savedLegacyMeters != null) km = savedLegacyMeters / 1000.0;
 

@@ -114,5 +114,6 @@
   "what_to_send": "What do you want to send?",
   "send_full_event": "Send full event",
   "sheets_count_label": "{count} day sheets",
-  "send_days_count_btn": "Send ({count} days)"
+  "send_days_count_btn": "Send ({count} days)",
+  "starting_odometer": "Starting odometer"
 }

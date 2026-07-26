@@ -23,11 +23,12 @@ class _SettingsPageState extends State<SettingsPage> {
   late final TextEditingController _driverController;
   late final TextEditingController _carController;
   late final TextEditingController _eventController;
+  late final TextEditingController _odometerController; // <--- ÚJ
 
   String? _selectedFuelType;
   String? _selectedVehicleType;
 
-  bool _showCityInTrips = true;
+  bool _showCityInTrips = false;
 
   final List<String> _fuelOptions = ['Diesel', 'Petrol', 'Electric', 'Hybrid'];
   final List<String> _vehicleOptions = ['Passenger', 'Cargo'];
@@ -38,6 +39,11 @@ class _SettingsPageState extends State<SettingsPage> {
     _driverController = TextEditingController(text: widget.settings.defaultDriverName);
     _carController = TextEditingController(text: widget.settings.defaultCarPlate);
     _eventController = TextEditingController(text: widget.settings.activeEventName);
+
+    // <--- ÚJ: Odometer controller inicializálása
+    _odometerController = TextEditingController(
+        text: widget.settings.defaultStartingOdometer == 0 ? '' : widget.settings.defaultStartingOdometer.toString()
+    );
 
     if (widget.settings.defaultFuelType.isNotEmpty && _fuelOptions.contains(widget.settings.defaultFuelType)) {
       _selectedFuelType = widget.settings.defaultFuelType;
@@ -53,7 +59,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadCitySetting() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _showCityInTrips = prefs.getBool('show_city_in_trips') ?? true;
+      _showCityInTrips = prefs.getBool('show_city_in_trips') ?? false;
     });
   }
 
@@ -62,20 +68,20 @@ class _SettingsPageState extends State<SettingsPage> {
     _driverController.dispose();
     _carController.dispose();
     _eventController.dispose();
+    _odometerController.dispose(); // <--- ÚJ
     super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(SettingsPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.settings.activeEventName != widget.settings.activeEventName) {
-      _eventController.text = widget.settings.activeEventName;
-    }
   }
 
   Future<void> _updatePref(String key, String value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(key, value);
+    widget.onSettingsChanged();
+  }
+
+  // <--- ÚJ: Külön mentő függvény a számoknak
+  Future<void> _updatePrefInt(String key, int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(key, value);
     widget.onSettingsChanged();
   }
 
@@ -101,7 +107,7 @@ class _SettingsPageState extends State<SettingsPage> {
       labelStyle: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade700),
       prefixIcon: Icon(icon, size: 22, color: iconColor),
       filled: true,
-      fillColor: isDark ? const Color(0xFF2A2A2A) : Colors.grey.shade50, // <-- Sötét módban sötét háttér
+      fillColor: isDark ? const Color(0xFF2A2A2A) : Colors.grey.shade50,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Theme.of(context).dividerColor, width: 1)),
@@ -190,6 +196,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
 
+                // <--- ÚJ: Alapértelmezett Kezdő Kilométer a Settings-ben
+                TextField(
+                  controller: _odometerController,
+                  decoration: _modernInput('starting_odometer'.tr(), Icons.speed, Colors.red.shade500),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (v) => _updatePrefInt('default_starting_odometer', int.tryParse(v) ?? 0),
+                ),
+                const SizedBox(height: 16),
+
                 TextField(
                   controller: _driverController,
                   decoration: _modernInput('driver_name'.tr(), Icons.badge_rounded, Colors.teal.shade500),
@@ -245,7 +261,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-          const SizedBox(height: 24), // Csak egy kellemes alsó lélegzetvételnyi hely maradt a görgetőnek
+          const SizedBox(height: 24),
         ],
       ),
     );

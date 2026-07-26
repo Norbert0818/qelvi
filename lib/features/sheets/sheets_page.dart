@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:share_plus/share_plus.dart'; // <--- MEGVAN AZ IMPORT
+import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
 
 import '../../core/config/env.dart';
@@ -52,6 +52,7 @@ class _SheetsPageState extends State<SheetsPage> {
     activeEventName: '',
     defaultFuelType: '',
     defaultVehicleType: '',
+    defaultStartingOdometer: 0,
   );
 
   int selectedTab = 0;
@@ -171,6 +172,7 @@ class _SheetsPageState extends State<SheetsPage> {
           activeEventName: prefs.getString('active_event_name') ?? '',
           defaultFuelType: fuel,
           defaultVehicleType: vehicle,
+          defaultStartingOdometer: prefs.getInt('default_starting_odometer') ?? 0,
         );
         loading = false;
       });
@@ -289,13 +291,57 @@ class _SheetsPageState extends State<SheetsPage> {
     DaySheet? targetSheet = existing;
 
     if (targetSheet == null) {
+      int calculatedOdo = settings.defaultStartingOdometer;
+
+      final todayDate = _parseSheetDate(todayStr);
+
+      final previousCarSheets = sheets.where((s) {
+        return s.carNumber == settings.defaultCarPlate &&
+            _parseSheetDate(s.date).isBefore(todayDate);
+      }).toList();
+
+      previousCarSheets.sort(
+            (a, b) => _parseSheetDate(b.date).compareTo(_parseSheetDate(a.date)),
+      );
+
+      if (previousCarSheets.isNotEmpty) {
+        final lastSheet = previousCarSheets.first;
+
+        if (lastSheet.startingOdometer > 0) {
+          calculatedOdo =
+              lastSheet.startingOdometer + lastSheet.totalKm.round();
+        } else {
+          calculatedOdo = settings.defaultStartingOdometer;
+        }
+      }
+
       final index = sheets.indexWhere((e) =>
       e.date == todayStr &&
           e.eventName == settings.activeEventName &&
           !e.isArchived);
 
       if (index >= 0) {
-        targetSheet = sheets[index];
+        final existingSheet = sheets[index];
+
+        if (existingSheet.startingOdometer == 0) {
+          targetSheet = DaySheet(
+            id: existingSheet.id,
+            vehicleType: existingSheet.vehicleType,
+            fuelType: existingSheet.fuelType,
+            date: existingSheet.date,
+            carNumber: existingSheet.carNumber,
+            driverName: existingSheet.driverName,
+            eventName: existingSheet.eventName,
+            startingOdometer: calculatedOdo,
+            isArchived: existingSheet.isArchived,
+            rows: existingSheet.rows,
+          );
+
+          sheets[index] = targetSheet;
+          await _prefs.saveDaySheets(sheets);
+        } else {
+          targetSheet = existingSheet;
+        }
       } else {
         targetSheet = DaySheet(
           id: DateTime.now().millisecondsSinceEpoch,
@@ -305,6 +351,7 @@ class _SheetsPageState extends State<SheetsPage> {
           carNumber: settings.defaultCarPlate,
           driverName: settings.defaultDriverName,
           eventName: settings.activeEventName,
+          startingOdometer: calculatedOdo,
           rows: [],
         );
       }
@@ -388,9 +435,39 @@ class _SheetsPageState extends State<SheetsPage> {
     );
   }
 
-  // ============================================================================
-  // HAGYOMÁNYOS LETÖLTÉS (Mentés ablak)
-  // ============================================================================
+  Future<void> _recalculateStartingOdometers(
+      List<DaySheet> targetSheets,
+      ) async {
+    if (targetSheets.isEmpty) return;
+    if (settings.defaultStartingOdometer <= 0) return;
+
+    final orderedSheets = [...targetSheets];
+
+    // Legrégebbi naptól a legújabbig
+    orderedSheets.sort(
+          (a, b) => _parseSheetDate(a.date).compareTo(
+        _parseSheetDate(b.date),
+      ),
+    );
+
+    int nextStartingOdometer = settings.defaultStartingOdometer;
+
+    for (final sheet in orderedSheets) {
+      sheet.startingOdometer = nextStartingOdometer;
+
+      nextStartingOdometer += sheet.totalKm.round();
+
+      debugPrint(
+        'ODOMETER: ${sheet.date} | '
+            'start=${sheet.startingOdometer} | '
+            'distance=${sheet.totalKm}',
+      );
+    }
+
+    // Elmentjük a frissített kilométereket
+    await _prefs.saveDaySheets(sheets);
+  }
+
   Future<void> _export() async {
     if (settings.apiBaseUrl.isEmpty || settings.apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -405,7 +482,21 @@ class _SheetsPageState extends State<SheetsPage> {
     try {
       final apiClient = ApiClient(baseUrl: settings.apiBaseUrl, apiKey: settings.apiKey);
       final exportService = ExportService(apiClient: apiClient);
-      final activeSheets = sheets.where((s) => !s.isArchived && s.eventName == settings.activeEventName).toList();
+      final activeSheets = sheets
+          .where((s) =>
+      !s.isArchived &&
+          s.eventName == settings.activeEventName)
+          .toList();
+
+      await _recalculateStartingOdometers(activeSheets);
+
+      for (final sheet in activeSheets) {
+        debugPrint(
+          'EXPORT: ${sheet.date} | '
+              'startingOdometer=${sheet.startingOdometer} | '
+              'totalKm=${sheet.totalKm}',
+        );
+      }
 
       final savedPath = await exportService.downloadDaySheets(
         activeSheets,
@@ -439,9 +530,6 @@ class _SheetsPageState extends State<SheetsPage> {
     }
   }
 
-  // ============================================================================
-  // ÚJ LOGIKA: MEGOSZTÁS KIVÁLASZTÓ ÉS GENERÁLÓ (Share_plus)
-  // ============================================================================
   Future<void> _showShareDialog(List<DaySheet> activeSheets) async {
     if (activeSheets.isEmpty) return;
 
@@ -456,7 +544,7 @@ class _SheetsPageState extends State<SheetsPage> {
     );
 
     if (selectedSheets == null || selectedSheets.isEmpty) return;
-
+    await _recalculateStartingOdometers(selectedSheets);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -472,6 +560,8 @@ class _SheetsPageState extends State<SheetsPage> {
         fallbackEventName: settings.activeEventName.isNotEmpty ? settings.activeEventName : 'DaySheets',
         fallbackDriverName: settings.defaultDriverName.isNotEmpty ? settings.defaultDriverName : 'Driver',
         isSilentShare: true,
+        // --- ÚJ: Ha nem az összes napot jelölték ki, akkor részleges formátumot kérünk! ---
+        isPartial: selectedSheets.length < activeSheets.length,
       );
 
       if (mounted) Navigator.pop(context);
@@ -514,7 +604,6 @@ class _SheetsPageState extends State<SheetsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Tracking card
         Container(
           margin: const EdgeInsets.only(bottom: 24),
           decoration: BoxDecoration(
@@ -597,7 +686,6 @@ class _SheetsPageState extends State<SheetsPage> {
           ),
         ),
 
-        // Header menü választó
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -672,24 +760,23 @@ class _SheetsPageState extends State<SheetsPage> {
           ],
         ),
         const SizedBox(height: 12),
-        // --- JAVÍTOTT: SZIMMETRIKUS DUPLA GOMB ---
         SizedBox(
-          height: 56, // Határozott, egyforma magasság mindkét gombnak
+          height: 56,
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch, // Teljesen kitöltik a magasságot
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: FilledButton.tonalIcon(
                   onPressed: _export,
                   icon: const Icon(Icons.download_rounded),
-                  label: FittedBox( // Megakadályozza a kétsoros törést
+                  label: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text('export_excel'.tr()),
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.green.shade50,
                     foregroundColor: Colors.green.shade700,
-                    padding: const EdgeInsets.symmetric(horizontal: 8), // Csak minimális oldalsó margó
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -699,14 +786,14 @@ class _SheetsPageState extends State<SheetsPage> {
                 child: FilledButton.tonalIcon(
                   onPressed: () => _showShareDialog(activeSheets),
                   icon: const Icon(Icons.send_rounded),
-                  label: FittedBox( // Megakadályozza a kétsoros törést
+                  label: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text('share_btn'.tr()),
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.blue.shade50,
                     foregroundColor: Colors.blue.shade700,
-                    padding: const EdgeInsets.symmetric(horizontal: 8), // Csak minimális oldalsó margó
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),

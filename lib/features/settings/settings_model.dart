@@ -7,6 +7,7 @@ class SettingsModel {
   final String activeEventName;
   final String defaultFuelType;
   final String defaultVehicleType;
+  final int defaultStartingOdometer;
 
   const SettingsModel({
     required this.apiBaseUrl,
@@ -16,5 +17,6 @@ class SettingsModel {
     this.activeEventName = '',
     this.defaultFuelType = '',
     this.defaultVehicleType = '',
+    this.defaultStartingOdometer = 0,
   });
 }

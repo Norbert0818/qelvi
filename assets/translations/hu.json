@@ -114,5 +114,6 @@
   "what_to_send": "Mit szeretnél elküldeni?",
   "send_full_event": "Teljes esemény küldése",
   "sheets_count_label": "{count} menetlevél",
-  "send_days_count_btn": "Küldés ({count} nap)"
+  "send_days_count_btn": "Küldés ({count} nap)",
+  "starting_odometer": "Induló kilométeróra"
 }
