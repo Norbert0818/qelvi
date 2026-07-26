@@ -1,5 +1,6 @@
 // lib/core/tracking/tracking_service.dart
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -81,6 +82,32 @@ class TrackingService {
   static const _distanceKmKey = 'distance_km';
   static const _totalDistanceLegacyKey = 'total_distance';
 
+  // --- ÚJ: Platform-specifikus GPS beállítások (iOS leállás és pontatlanság ellen) ---
+  LocationSettings _getPlatformLocationSettings() {
+    if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        activityType: ActivityType.automotiveNavigation,
+        distanceFilter: 5,
+        allowBackgroundLocationUpdates: true,
+        showBackgroundLocationIndicator: true,
+        pauseLocationUpdatesAutomatically: false,
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
+        forceLocationManager: false,
+        intervalDuration: const Duration(seconds: 2),
+      );
+    } else {
+      return const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
+      );
+    }
+  }
+
   Future<bool> ensurePermissions() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -150,7 +177,9 @@ class TrackingService {
 
     Position? pos;
     try {
-      pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
+      pos = await Geolocator.getCurrentPosition(
+        locationSettings: _getPlatformLocationSettings(),
+      );
     } catch (e) {
       pos = await Geolocator.getLastKnownPosition();
     }
@@ -202,13 +231,16 @@ class TrackingService {
     final savedStartTimeRaw = prefs.getString(_startTimeKey);
     final savedStartAddress = prefs.getString(_startAddressKey);
 
+    // Felfelé kerekítés a mért útra
     final savedDistanceKm = (prefs.getDouble(_distanceKmKey) ?? 0.0).ceilToDouble();
 
     await FlutterForegroundTask.stopService();
 
     Position? pos;
     try {
-      pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
+      pos = await Geolocator.getCurrentPosition(
+        locationSettings: _getPlatformLocationSettings(),
+      );
     } catch (e) {
       pos = await Geolocator.getLastKnownPosition();
     }
@@ -243,7 +275,6 @@ class TrackingService {
     if (sheetIndex >= 0) {
       activeSheet = allSheets[sheetIndex];
     } else {
-      // --- INTELLIGENS SZÁMOLÓ (GPS Trackingnél is) ---
       int calculatedOdo = prefs.getInt('default_starting_odometer') ?? 0;
 
       final carSheets = allSheets.where((s) => s.carNumber == defaultCarNumber).toList();
@@ -259,9 +290,9 @@ class TrackingService {
         });
 
         final lastSheet = carSheets.first;
-        // JAVÍTVA ITT IS:
         if (lastSheet.startingOdometer > 0) {
-          calculatedOdo = lastSheet.startingOdometer + lastSheet.totalKm.toInt();
+          // --- JAVÍTVA: Itt is .ceil() kerekítést használunk egységesen! ---
+          calculatedOdo = lastSheet.startingOdometer + lastSheet.totalKm.ceil();
         } else {
           calculatedOdo = prefs.getInt('default_starting_odometer') ?? 0;
         }

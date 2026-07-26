@@ -41,6 +41,7 @@ class _SheetsPageState extends State<SheetsPage> {
     }
   }
 
+  bool _isBusy = false;
   final _prefs = PrefsService();
   List<DaySheet> sheets = [];
 
@@ -205,6 +206,9 @@ class _SheetsPageState extends State<SheetsPage> {
   }
 
   Future<void> _startTracking() async {
+    // --- VÉDŐZÁR 1: Ha már dolgozik a gomb vagy fut a mérés, nem engedjük újra megnyomni ---
+    if (_isBusy || tracking.isTracking) return;
+
     if (settings.defaultCarPlate.isEmpty ||
         settings.defaultDriverName.isEmpty ||
         settings.activeEventName.isEmpty) {
@@ -242,6 +246,8 @@ class _SheetsPageState extends State<SheetsPage> {
       if (userAgreed != true) return;
     }
 
+    // --- VÉDŐZÁR 2: Letiltjuk a gombot, amíg az iOS indítja a háttérszervizt ---
+    setState(() => _isBusy = true);
     try {
       final result = await _trackingService.startTrip();
 
@@ -258,10 +264,18 @@ class _SheetsPageState extends State<SheetsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${tr('err_start_error')}: $e')),
       );
+    } finally {
+      // --- VÉDŐZÁR 3: Bármi történik (siker vagy hiba), a végén feloldjuk a gombot ---
+      if (mounted) setState(() => _isBusy = false);
     }
   }
 
   Future<void> _stopTracking() async {
+    // --- VÉDŐZÁR 1: Ha épp dolgozik vagy eleve nem fut a mérés, nem engedjük megnyomni ---
+    if (_isBusy || !tracking.isTracking) return;
+
+    // --- VÉDŐZÁR 2: Letiltjuk a gombot a mentés idejére ---
+    setState(() => _isBusy = true);
     try {
       final result = await _trackingService.stopAndSaveTrip();
 
@@ -281,6 +295,9 @@ class _SheetsPageState extends State<SheetsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${tr('err_stop_error')}: $e')),
       );
+    } finally {
+      // --- VÉDŐZÁR 3: Feloldjuk a gombot ---
+      if (mounted) setState(() => _isBusy = false);
     }
   }
 
@@ -663,19 +680,27 @@ class _SheetsPageState extends State<SheetsPage> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: tracking.isTracking ? null : _startTracking,
-                        icon: Icon(Icons.play_arrow_rounded, color: tracking.isTracking ? Colors.white54 : Colors.blue.shade700),
-                        label: Text('start'.tr(), style: TextStyle(color: tracking.isTracking ? Colors.white54 : Colors.blue.shade700, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                        style: ElevatedButton.styleFrom(backgroundColor: tracking.isTracking ? Colors.white.withOpacity(0.15) : Colors.white, disabledBackgroundColor: Colors.white.withOpacity(0.15), shadowColor: Colors.black.withOpacity(0.1), elevation: tracking.isTracking ? 0 : 8, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        // Ha fut a mérés VAGY épp dolgozik a gomb, letiltjuk az indítást:
+                        onPressed: (_isBusy || tracking.isTracking) ? null : _startTracking,
+                        // Ha épp indítás alatt van, mutassunk egy kis forgó töltésjelzőt a gombban!
+                        icon: _isBusy && !tracking.isTracking
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : Icon(Icons.play_arrow_rounded, color: (_isBusy || tracking.isTracking) ? Colors.white54 : Colors.blue.shade700),
+                        label: Text('start'.tr(), style: TextStyle(color: (_isBusy || tracking.isTracking) ? Colors.white54 : Colors.blue.shade700, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        style: ElevatedButton.styleFrom(backgroundColor: (_isBusy || tracking.isTracking) ? Colors.white.withOpacity(0.15) : Colors.white, disabledBackgroundColor: Colors.white.withOpacity(0.15), shadowColor: Colors.black.withOpacity(0.1), elevation: (_isBusy || tracking.isTracking) ? 0 : 8, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: tracking.isTracking ? _stopTracking : null,
-                        icon: Icon(Icons.stop_rounded, color: tracking.isTracking ? Colors.redAccent : Colors.white54),
-                        label: Text('stop'.tr(), style: TextStyle(color: tracking.isTracking ? Colors.redAccent : Colors.white54, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                        style: ElevatedButton.styleFrom(backgroundColor: tracking.isTracking ? Colors.white : Colors.white.withOpacity(0.15), disabledBackgroundColor: Colors.white.withOpacity(0.15), shadowColor: Colors.black.withOpacity(0.1), elevation: tracking.isTracking ? 8 : 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        // Ha nem fut a mérés VAGY épp dolgozik a gomb, letiltjuk a leállítást:
+                        onPressed: (_isBusy || !tracking.isTracking) ? null : _stopTracking,
+                        // Ha épp leállítás alatt van, itt is mutassuk a töltésjelzőt:
+                        icon: _isBusy && tracking.isTracking
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.redAccent)))
+                            : Icon(Icons.stop_rounded, color: (_isBusy || !tracking.isTracking) ? Colors.white54 : Colors.redAccent),
+                        label: Text('stop'.tr(), style: TextStyle(color: (_isBusy || !tracking.isTracking) ? Colors.white54 : Colors.redAccent, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        style: ElevatedButton.styleFrom(backgroundColor: (_isBusy || !tracking.isTracking) ? Colors.white.withOpacity(0.15) : Colors.white, disabledBackgroundColor: Colors.white.withOpacity(0.15), shadowColor: Colors.black.withOpacity(0.1), elevation: (_isBusy || !tracking.isTracking) ? 0 : 8, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                       ),
                     ),
                   ],
