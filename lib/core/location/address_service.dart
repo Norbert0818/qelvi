@@ -7,6 +7,36 @@ import 'package:http/http.dart' as http;
 import 'package:easy_localization/easy_localization.dart';
 
 class AddressCleaner {
+  // --- TELJES ROMÁN ÉS MAGYAR MEGYE LISTA A BIZTOS SZŰRÉSHEZ ---
+  static const _counties = {
+    // Román megyék
+    'alba', 'arad', 'argeș', 'arges', 'bacău', 'bacau', 'bihor', 'bistrița-năsăud', 'bistrita-nasaud',
+    'botoșani', 'botosani', 'brașov', 'brasov', 'brăila', 'braila', 'buzău', 'buzau', 'caraș-severin',
+    'caras-severin', 'călărași', 'calarasi', 'cluj', 'constanța', 'constanta', 'covasna', 'dâmbovița',
+    'dambovita', 'dolj', 'galați', 'galati', 'giurgiu', 'gorj', 'harghita', 'hunedoara', 'ialomița',
+    'ialomita', 'iași', 'iasi', 'ilfov', 'maramureș', 'maramures', 'mehedinți', 'mehedinti', 'mureș',
+    'mures', 'neamț', 'neamt', 'olt', 'prahova', 'satu mare', 'sălaj', 'salaj', 'sibiu', 'suceava',
+    'teleorman', 'timiș', 'timis', 'tulcea', 'vaslui', 'vâlcea', 'valcea', 'vrancea', 'bucurești', 'bucuresti',
+    // Magyar megyék
+    'bács-kiskun', 'baranya', 'békés', 'bekes', 'borsod-abaúj-zemplén', 'borsod-abauj-zemplen',
+    'csongrád-csanád', 'csongrad-csanad', 'csongrád', 'csongrad', 'fejér', 'fejer', 'győr-moson-sopron',
+    'gyor-moson-sopron', 'hajdú-bihar', 'hajdu-bihar', 'heves', 'jász-nagykun-szolnok', 'jasz-nagykun-szolnok',
+    'komárom-esztergom', 'komarom-esztergom', 'nógrád', 'nograd', 'pest', 'somogy', 'szabolcs-szatmár-bereg',
+    'szabolcs-szatmar-bereg', 'tolna', 'vas', 'veszprém', 'veszprem', 'zala', 'budapest'
+  };
+
+  static bool _isCounty(String text) {
+    final cleanText = text.toLowerCase()
+        .replaceAll('județul', '')
+        .replaceAll('judetul', '')
+        .replaceAll('jud.', '')
+        .replaceAll('jud', '')
+        .replaceAll('county', '')
+        .replaceAll('megye', '')
+        .trim();
+    return _counties.contains(cleanText);
+  }
+
   static String clean(String raw, bool showCity) {
     if (raw.trim().isEmpty) return '';
     if (raw == 'Unknown location' || raw == 'Locație necunoscută') return raw;
@@ -36,17 +66,35 @@ class AddressCleaner {
       }
     }
 
-    // 2. Irányítószámok és országok kiszűrése
+    // 2. Irányítószámok, országok és egyértelmű megye-szavak kiszűrése
     parts = parts.where((p) {
       if (RegExp(r'^\d{4,6}$').hasMatch(p)) return false;
       final up = p.toUpperCase();
       if (['ROU', 'ROMANIA', 'ROMÂNIA', 'HU', 'HUN', 'MAGYARORSZÁG'].contains(up)) return false;
+      if (up.startsWith('JUDEȚUL ') || up.startsWith('JUD. ') || up.startsWith('JUD ')) return false;
+      if (up.endsWith(' MEGYE') || up.endsWith(' JUDET')) return false;
       return true;
     }).toList();
 
     if (parts.isEmpty) return '';
 
-    // --- JAVÍTÁS: Itt szabályozzuk, hogy mi kerüljön az EXCELBE ---
+    // --- ÚJ JAVÍTÁS: Ha a cím végén (a város után) egy megye neve áll (pl. "Sălaj", "Cluj"), levágjuk! ---
+    while (parts.length >= 2 && _isCounty(parts.last)) {
+      parts.removeLast();
+    }
+
+    // Duplikációk kiszűrése (pl. ha a város neve kétszer szerepelne egymás után)
+    final deduplicated = <String>[];
+    for (final p in parts) {
+      if (deduplicated.isEmpty || deduplicated.last.toLowerCase() != p.toLowerCase()) {
+        deduplicated.add(p);
+      }
+    }
+    parts = deduplicated;
+
+    if (parts.isEmpty) return '';
+
+    // 3. Megjelenítés szabályozása (Excel vs. UI)
     if (!showCity) {
       bool firstIsStreet = RegExp(r'\d').hasMatch(parts[0]) ||
           parts[0].toLowerCase().startsWith('str.') ||
@@ -58,7 +106,7 @@ class AddressCleaner {
           parts[0].toLowerCase().startsWith('dc');
 
       if (firstIsStreet) {
-        return parts[0]; // Levágjuk a várost mögüle!
+        return parts[0];
       } else {
         if (parts.length >= 2) return '${parts[0]}, ${parts[1]}';
         return parts[0];
@@ -72,7 +120,6 @@ class AddressCleaner {
 
 class AddressService {
   Future<String> resolveAddress(Position pos) async {
-    // --- JAVÍTVA: Az appon belül és a logban MINDIG várossal (true) kérjük le a címet! ---
     final placeName = await _tryResolvePlaceName(pos);
     if (placeName != null && placeName.trim().isNotEmpty) {
       return AddressCleaner.clean(placeName, true);

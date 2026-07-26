@@ -317,7 +317,7 @@ class _DaySheetEditorPageState extends State<DaySheetEditorPage> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${sheet.totalKm.toInt()} km', // Kerekítve (tizedesek nélkül) ahogy a többi helyen
+                      '${sheet.totalKm.ceil()} km', // Kerekítve (tizedesek nélkül) ahogy a többi helyen
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.teal.shade800,

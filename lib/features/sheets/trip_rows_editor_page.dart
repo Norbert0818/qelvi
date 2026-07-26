@@ -86,6 +86,17 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
   void _save() {
     final updatedRows = wrappedRows.map((w) => w.row).toList();
 
+    // --- ÚJ: Automatikus időrendi rendezés (Reggeltől estig: pl. 08:00 -> 12:20 -> 14:47) ---
+    updatedRows.sort((a, b) {
+      // Ha valamelyik indulási idő véletlenül üres maradt, azt a lista legaljára tesszük
+      if (a.departureTime.isEmpty) return 1;
+      if (b.departureTime.isEmpty) return -1;
+
+      // Mivel 24 órás formátumot használunk (pl. "08:30", "14:47"),
+      // a szöveges összehasonlítás tökéletes időrendi sorrendet ad!
+      return a.departureTime.compareTo(b.departureTime);
+    });
+
     final updatedSheet = DaySheet(
       id: widget.daySheet.id,
       vehicleType: widget.daySheet.vehicleType,
@@ -195,6 +206,8 @@ class _TripRowCardState extends State<_TripRowCard> {
   late final TextEditingController _arrTimeCtrl;
   late final TextEditingController _kmCtrl;
 
+  bool _isLocating = false; // Töltésjelző a GPS gombhoz
+
   @override
   void initState() {
     super.initState();
@@ -215,11 +228,46 @@ class _TripRowCardState extends State<_TripRowCard> {
     super.dispose();
   }
 
-  InputDecoration _modernInput(String label, IconData icon) {
+  // --- ÚJ FÜGGVÉNY: Jelenlegi GPS pozíció lekérése és beírása ---
+  Future<void> _fillCurrentLocation(TextEditingController ctrl, Function(String) onSave) async {
+    setState(() => _isLocating = true);
+    try {
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 4));
+      } catch (_) {
+        pos = await Geolocator.getLastKnownPosition();
+      }
+
+      if (pos != null) {
+        final addressService = AddressService();
+        // A resolveAddress most már a megyéktől megtisztított, gyönyörű címet adja!
+        final address = await addressService.resolveAddress(pos);
+
+        setState(() {
+          ctrl.text = address;
+        });
+        onSave(address);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('err_location_permission'.tr()), behavior: SnackBarBehavior.floating),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Hiba a GPS lekérésben: $e');
+    } finally {
+      if (mounted) setState(() => _isLocating = false);
+    }
+  }
+
+  InputDecoration _modernInput(String label, IconData icon, {Widget? suffixIcon}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon, size: 20, color: Colors.blue.shade700),
+      suffixIcon: suffixIcon, // <--- ÚJ: Ide kerül a GPS gomb
       filled: true,
       fillColor: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade50,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -247,6 +295,15 @@ class _TripRowCardState extends State<_TripRowCard> {
   }
 
   Widget _buildProTypeAhead({required String label, required IconData icon, required TextEditingController controller, required Function(String) onSaved}) {
+    // Készítünk egy szép célkereső gombot a mező végére
+    final gpsButton = IconButton(
+      icon: _isLocating
+          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.my_location, color: Colors.blue),
+      tooltip: 'Jelenlegi helyszín',
+      onPressed: _isLocating ? null : () => _fillCurrentLocation(controller, onSaved),
+    );
+
     return TypeAheadField<String>(
       controller: controller,
       debounceDuration: const Duration(milliseconds: 300),
@@ -256,7 +313,12 @@ class _TripRowCardState extends State<_TripRowCard> {
         controller.text = suggestion;
         onSaved(suggestion);
       },
-      builder: (context, ctrl, focusNode) => TextField(controller: ctrl, focusNode: focusNode, decoration: _modernInput(label, icon), onChanged: onSaved),
+      builder: (context, ctrl, focusNode) => TextField(
+          controller: ctrl,
+          focusNode: focusNode,
+          decoration: _modernInput(label, icon, suffixIcon: gpsButton), // <--- Itt adjuk át a gombot!
+          onChanged: onSaved
+      ),
       emptyBuilder: (context) => const SizedBox.shrink(),
     );
   }

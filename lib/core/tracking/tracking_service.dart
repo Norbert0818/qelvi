@@ -202,7 +202,7 @@ class TrackingService {
     final savedStartTimeRaw = prefs.getString(_startTimeKey);
     final savedStartAddress = prefs.getString(_startAddressKey);
 
-    final savedDistanceKm = (prefs.getDouble(_distanceKmKey) ?? 0.0).roundToDouble();
+    final savedDistanceKm = (prefs.getDouble(_distanceKmKey) ?? 0.0).ceilToDouble();
 
     await FlutterForegroundTask.stopService();
 

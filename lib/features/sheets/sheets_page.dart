@@ -308,8 +308,7 @@ class _SheetsPageState extends State<SheetsPage> {
         final lastSheet = previousCarSheets.first;
 
         if (lastSheet.startingOdometer > 0) {
-          calculatedOdo =
-              lastSheet.startingOdometer + lastSheet.totalKm.round();
+          calculatedOdo = lastSheet.startingOdometer + lastSheet.totalKm.ceil();
         } else {
           calculatedOdo = settings.defaultStartingOdometer;
         }
@@ -455,7 +454,7 @@ class _SheetsPageState extends State<SheetsPage> {
     for (final sheet in orderedSheets) {
       sheet.startingOdometer = nextStartingOdometer;
 
-      nextStartingOdometer += sheet.totalKm.round();
+      nextStartingOdometer += sheet.totalKm.ceil();
 
       debugPrint(
         'ODOMETER: ${sheet.date} | '
@@ -852,7 +851,7 @@ class _SheetsPageState extends State<SheetsPage> {
                             children: [
                               Text('total_badge'.tr(), style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600)),
                               const SizedBox(height: 4),
-                              Text('${sheet.totalKm.toInt()}', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                              Text('${sheet.totalKm.ceil()}', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
                               const Text('km', style: TextStyle(fontSize: 12, color: Colors.blue)),
                             ],
                           ),
