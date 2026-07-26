@@ -22,13 +22,15 @@ class ExportService {
         String fallbackEventName = 'DaySheets',
         String fallbackDriverName = 'Driver',
         bool isSilentShare = false,
-        bool isPartial = false, // <--- ÚJ KAPCSOLÓ: Részleges export-e?
+        bool isPartial = false,
       }) async {
     final url = Uri.parse('${apiClient.baseUrl}/export');
 
     final prefs = await SharedPreferences.getInstance();
-    final showCity = prefs.getBool('show_city_in_trips') ?? true;
+    // --- ITT OLVASSUK BE A KAPCSOLÓ ÁLLÁSÁT AZ EXCELHEZ ---
+    final showCity = prefs.getBool('show_city_in_trips') ?? false;
 
+    // --- AZ EXCELBE KERÜLŐ ADATOKAT MEGTISZTÍTJUK A KAPCSOLÓ SZERINT ---
     final cleanSheets = sheets.map((sheet) {
       final cleanRows = sheet.rows.map((row) => TripRow(
         departurePlace: AddressCleaner.clean(row.departurePlace, showCity),
@@ -75,10 +77,9 @@ class ExportService {
       final cleanEvent = eventName.replaceAll(RegExp(r'[^\w\s-]'), '_');
       final cleanDriver = driverName.replaceAll(RegExp(r'[^\w\s-]'), '_');
 
-      // --- ÚJ INTELLIGENS FÁJLNÉV GENERÁLÓ ---
+      // --- INTELLIGENS FÁJLNÉV GENERÁLÓ (+ JELLEL) ---
       String fileName;
       if (isPartial && cleanSheets.isNotEmpty) {
-        // Időrendben növekvővé rendezjük a dátumokat a fájlnévhez
         final sortedSheets = [...cleanSheets];
         sortedSheets.sort((a, b) {
           try {
@@ -89,7 +90,6 @@ class ExportService {
           } catch (_) { return 0; }
         });
 
-        // Kigyűjtjük a DD.MM formátumokat (pl. "21.07")
         final shortDates = sortedSheets.map((s) {
           final parts = s.date.split('.');
           if (parts.length >= 2) return '${parts[0]}.${parts[1]}';
@@ -98,17 +98,13 @@ class ExportService {
 
         String datesStr;
         if (shortDates.length <= 3) {
-          // 1, 2 vagy 3 nap esetén +-szal kötjük össze: "21.07+24.07"
-          datesStr = shortDates.join('+');
+          datesStr = shortDates.join('+'); // Pl.: 21.07+24.07
         } else {
-          // 4 vagy több nap esetén nem írjuk ki az összeset, hogy ne legyen túl hosszú a fájlnév:
-          // Pl.: "21.07_28.07(5nap)" -> Első_Utolsó(darabszám)
-          datesStr = '${shortDates.first}_${shortDates.last}(${shortDates.length}nap)';
+          datesStr = '${shortDates.first}_${shortDates.last}(${shortDates.length}nap)'; // Pl.: 21.07_28.07(5nap)
         }
 
         fileName = '${datesStr}_${cleanDriver}_$cleanEvent';
       } else {
-        // Hagyományos formátum a teljes eseményhez
         fileName = '${cleanEvent}_${cleanDriver}_${now.year}';
       }
 

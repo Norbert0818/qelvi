@@ -98,7 +98,7 @@ class MyTaskHandler extends TaskHandler {
     final statusText = '${km.toStringAsFixed(2)} km – $elapsed';
 
     FlutterForegroundTask.updateService(
-      notificationTitle: tr('tracking_active'),
+      notificationTitle: 'Qelvi GPS Tracking',
       notificationText: statusText,
     );
 

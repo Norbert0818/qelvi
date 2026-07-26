@@ -163,7 +163,7 @@ class TrackingService {
     final startTime = DateTime.now();
 
     final serviceResult = await FlutterForegroundTask.startService(
-      notificationTitle: tr('tracking_active'),
+      notificationTitle: 'Qelvi GPS Tracking',
       notificationText: '0 km tracked',
       callback: startCallback,
     );

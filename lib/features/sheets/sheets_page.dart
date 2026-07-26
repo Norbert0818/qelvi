@@ -627,7 +627,7 @@ class _SheetsPageState extends State<SheetsPage> {
                       children: [
                         Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: Icon(tracking.isTracking ? Icons.satellite_alt : Icons.local_parking, color: Colors.white, size: 24)),
                         const SizedBox(width: 12),
-                        Text(tracking.isTracking ? 'tracking_active'.tr() : 'ready_to_drive'.tr(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+                        Text(tracking.isTracking ? 'tracking_active1'.tr() : 'ready_to_drive'.tr(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                       ],
                     ),
                     if (tracking.isTracking) const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),

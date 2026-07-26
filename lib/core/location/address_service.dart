@@ -1,11 +1,9 @@
 // lib/core/location/address_service.dart
 import 'dart:convert';
-
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 class AddressCleaner {
@@ -20,6 +18,7 @@ class AddressCleaner {
 
     List<String> parts = text.split(',').map((e) => e.trim()).toList();
 
+    // 1. Kiemelt helyek (Hotel, benzinkút stb.) azonnali visszaadása
     final containsKeywords = [
       'hotel', 'pensiune', 'panzió', 'panzio', 'motel', 'hostel', 'resort',
       'petrom', 'rompetrol', 'lukoil', 'socar',
@@ -29,20 +28,15 @@ class AddressCleaner {
 
     for (String part in parts) {
       final pLower = part.toLowerCase();
-
       for (String kw in containsKeywords) {
-        if (pLower.contains(kw)) {
-          return part;
-        }
+        if (pLower.contains(kw)) return part;
       }
-
       for (String kw in exactMatchKeywords) {
-        if (RegExp('\\b$kw\\b').hasMatch(pLower)) {
-          return part;
-        }
+        if (RegExp('\\b$kw\\b').hasMatch(pLower)) return part;
       }
     }
 
+    // 2. Irányítószámok és országok kiszűrése
     parts = parts.where((p) {
       if (RegExp(r'^\d{4,6}$').hasMatch(p)) return false;
       final up = p.toUpperCase();
@@ -52,6 +46,7 @@ class AddressCleaner {
 
     if (parts.isEmpty) return '';
 
+    // --- JAVÍTÁS: Itt szabályozzuk, hogy mi kerüljön az EXCELBE ---
     if (!showCity) {
       bool firstIsStreet = RegExp(r'\d').hasMatch(parts[0]) ||
           parts[0].toLowerCase().startsWith('str.') ||
@@ -63,7 +58,7 @@ class AddressCleaner {
           parts[0].toLowerCase().startsWith('dc');
 
       if (firstIsStreet) {
-        return parts[0];
+        return parts[0]; // Levágjuk a várost mögüle!
       } else {
         if (parts.length >= 2) return '${parts[0]}, ${parts[1]}';
         return parts[0];
@@ -77,16 +72,14 @@ class AddressCleaner {
 
 class AddressService {
   Future<String> resolveAddress(Position pos) async {
-    final prefs = await SharedPreferences.getInstance();
-    final showCity = prefs.getBool('show_city_in_trips') ?? true;
-
+    // --- JAVÍTVA: Az appon belül és a logban MINDIG várossal (true) kérjük le a címet! ---
     final placeName = await _tryResolvePlaceName(pos);
     if (placeName != null && placeName.trim().isNotEmpty) {
-      return AddressCleaner.clean(placeName, showCity);
+      return AddressCleaner.clean(placeName, true);
     }
 
     final reverseGeo = await _reverseGeocodeShort(pos);
-    return AddressCleaner.clean(reverseGeo, showCity);
+    return AddressCleaner.clean(reverseGeo, true);
   }
 
   Future<String?> _tryResolvePlaceName(Position pos) async {
@@ -155,7 +148,6 @@ class AddressService {
       }
 
       List<String> combined = [];
-
       if (name.isNotEmpty && name != street) combined.add(name);
 
       String streetFull = '$street $houseNumber'.trim();

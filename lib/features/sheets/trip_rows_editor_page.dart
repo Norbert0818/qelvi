@@ -4,12 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'models/day_sheet.dart';
 import 'models/trip_row.dart';
 import 'package:easy_localization/easy_localization.dart';
-
-// Importáljuk a központi tisztítót!
 import '../../core/location/address_service.dart';
 
 class _RowWrapper {
@@ -33,8 +30,6 @@ class TripRowsEditorPage extends StatefulWidget {
 class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
   late List<_RowWrapper> wrappedRows;
   Position? _currentPosition;
-
-  bool _showCity = true;
   bool _isLoading = true;
 
   @override
@@ -46,7 +41,6 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
       return _RowWrapper(
         key: UniqueKey(),
         row: TripRow(
-          // Itt már CSAK a letisztított meglévő adatot töltjük be, nem bántjuk!
           departurePlace: r.departurePlace,
           departureTime: r.departureTime,
           arrivalPlace: r.arrivalPlace,
@@ -59,9 +53,6 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
 
   Future<void> _initEngine() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _showCity = prefs.getBool('show_city_in_trips') ?? true;
-
       LocationPermission perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
@@ -93,7 +84,6 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
   }
 
   void _save() {
-    // --- JAVÍTVA: Csak pontosan azt mentjük, ami a mezőkben van! Nincs utólagos felülírás! ---
     final updatedRows = wrappedRows.map((w) => w.row).toList();
 
     final updatedSheet = DaySheet(
@@ -126,10 +116,9 @@ class _TripRowsEditorPageState extends State<TripRowsEditorPage> {
         final data = json.decode(response.body);
         final List suggestions = data['suggestions'] ?? [];
 
-        // --- JAVÍTVA: Átfuttatjuk az Esri találatokat a Tisztítón, mielőtt megjelenne a listában! ---
-        final cleanSuggestions = suggestions.map((s) => AddressCleaner.clean(s['text'].toString(), _showCity)).toList();
+        // --- JAVÍTVA: A keresőben MINDIG várossal (true) adjuk vissza a javaslatokat! ---
+        final cleanSuggestions = suggestions.map((s) => AddressCleaner.clean(s['text'].toString(), true)).toList();
 
-        // Eltávolítjuk az esetleges duplikációkat
         return cleanSuggestions.toSet().toList();
       }
     } catch (_) {}
@@ -264,7 +253,6 @@ class _TripRowCardState extends State<_TripRowCard> {
       suggestionsCallback: (pattern) async => await widget.suggestionsCallback(pattern),
       itemBuilder: (context, suggestion) => ListTile(visualDensity: VisualDensity.compact, leading: const Icon(Icons.location_on, color: Colors.blue, size: 18), title: Text(suggestion, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
       onSelected: (suggestion) {
-        // A lista elemei itt már gyönyörűen tiszták, csak betöltjük!
         controller.text = suggestion;
         onSaved(suggestion);
       },
