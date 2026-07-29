@@ -190,14 +190,29 @@ class AddressService {
       String name = (placemark.name ?? '').trim();
       final city = (placemark.locality ?? '').trim();
 
+      // 1. Töröljük a hibás vagy túl rövid neveket
       if (name.contains('+') || name.length <= 3) {
         name = '';
       }
 
-      List<String> combined = [];
-      if (name.isNotEmpty && name != street) combined.add(name);
-
       String streetFull = '$street $houseNumber'.trim();
+
+      // --- 2. APPLE MAPS DUPLIKÁCIÓ SZŰRÉSE (iOS specifikus javítás) ---
+      // Ha a 'name' (név) mező tartalma megegyezik az utcával vagy a házszámmal
+      // (pl. az Apple gyakran csak a "95A"-t adja vissza névként), azonnal eldobjuk!
+      if (name.isNotEmpty) {
+        final nLower = name.toLowerCase();
+        final sLower = street.toLowerCase();
+        final sfLower = streetFull.toLowerCase();
+        final hLower = houseNumber.toLowerCase();
+
+        if (nLower == sLower || nLower == sfLower || nLower == hLower || sfLower.contains(nLower)) {
+          name = ''; // Töröljük a nevet, mert csak duplikáció!
+        }
+      }
+
+      List<String> combined = [];
+      if (name.isNotEmpty) combined.add(name);
       if (streetFull.isNotEmpty) combined.add(streetFull);
       if (city.isNotEmpty) combined.add(city);
 
