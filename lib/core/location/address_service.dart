@@ -46,7 +46,8 @@ class AddressCleaner {
     text = text.replaceAll(RegExp(r'\bBulevardul\b', caseSensitive: false), 'Bd.');
     text = text.replaceAll(RegExp(r'\bBd\.\b', caseSensitive: false), 'Bd.');
 
-    List<String> parts = text.split(',').map((e) => e.trim()).toList();
+    // Feldaraboljuk a vesszőknél
+    List<String> parts = text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
     // 1. Kiemelt helyek (Hotel, benzinkút stb.) azonnali visszaadása
     final containsKeywords = [
@@ -78,41 +79,55 @@ class AddressCleaner {
 
     if (parts.isEmpty) return '';
 
-    // Megyék levágása a végéről
+    // 3. Megyék levágása a végéről
     while (parts.length >= 2 && _isCounty(parts.last)) {
       parts.removeLast();
     }
 
-    // Duplikációk kiszűrése
+    // --- ÚJ JAVÍTÁS 4: Házszámok okos összeolvasztása az utcanévvel ---
+    // Ha a következő rész egy házszám (pl. "95A", "nr. 10"), egyesítjük az előzővel vessző nélkül!
+    for (int i = 0; i < parts.length - 1; i++) {
+      final nextPart = parts[i + 1];
+      if (RegExp(r'^((nr\.?\s*)?\d+[a-zA-Z]?(/[a-zA-Z0-9]+)?|f\.?n\.?)$', caseSensitive: false).hasMatch(nextPart)) {
+        final cleanNum = nextPart.replaceAll(RegExp(r'^nr\.?\s*', caseSensitive: false), '');
+        // Csak akkor adjuk hozzá, ha az utca még nem tartalmazza a házszámot a végén
+        if (!parts[i].toLowerCase().endsWith(cleanNum.toLowerCase())) {
+          parts[i] = '${parts[i]} $cleanNum'.trim();
+        }
+        parts.removeAt(i + 1);
+        i--; // Visszalépünk, hátha van még valami
+      }
+    }
+
+    // --- ÚJ JAVÍTÁS 5: Agrésszív duplikáció és rész-szöveg szűrés ---
+    // Kiszedi a "95A"-t, ha már ott van mellette a "Bd. Mihai Viteazul 95A"
     final deduplicated = <String>[];
-    for (final p in parts) {
-      if (deduplicated.isEmpty || deduplicated.last.toLowerCase() != p.toLowerCase()) {
-        deduplicated.add(p);
+    for (int i = 0; i < parts.length; i++) {
+      final p = parts[i];
+      bool isContained = false;
+      for (int j = 0; j < parts.length; j++) {
+        if (i == j) continue;
+        final other = parts[j];
+        if (other.toLowerCase().contains(p.toLowerCase()) && p.length < other.length) {
+          isContained = true;
+          break;
+        }
+      }
+      if (!isContained) {
+        if (!deduplicated.any((d) => d.toLowerCase() == p.toLowerCase())) {
+          deduplicated.add(p);
+        }
       }
     }
     parts = deduplicated;
 
     if (parts.isEmpty) return '';
 
-    // 3. Megjelenítés szabályozása (Excel vs. UI)
+    // 6. Megjelenítés szabályozása (Excel vs. UI)
+    // Most már a parts[0] MINDIG tartalmazza a házszámot is, mert összeolvasztottuk!
     if (!showCity) {
-      bool firstIsStreet = RegExp(r'\d').hasMatch(parts[0]) ||
-          parts[0].toLowerCase().startsWith('str.') ||
-          parts[0].toLowerCase().startsWith('bd.') ||
-          parts[0].toLowerCase().startsWith('calea') ||
-          parts[0].toLowerCase().startsWith('piața') ||
-          parts[0].toLowerCase().startsWith('dn') ||
-          parts[0].toLowerCase().startsWith('dj') ||
-          parts[0].toLowerCase().startsWith('dc');
-
-      if (firstIsStreet) {
-        return parts[0];
-      } else {
-        if (parts.length >= 2) return '${parts[0]}, ${parts[1]}';
-        return parts[0];
-      }
+      return parts[0]; 
     } else {
-      if (parts.length > 3) return parts.sublist(0, 3).join(', ');
       return parts.join(', ');
     }
   }
@@ -185,30 +200,17 @@ class AddressService {
 
       final placemark = placemarks.first;
 
-      final street = (placemark.thoroughfare ?? placemark.street ?? '').trim();
+      // Egyszerűen csak kinyerjük az alapadatokat, a tisztító majd elvégzi a varázslatot
+      String streetName = (placemark.thoroughfare ?? '').trim();
+      if (streetName.isEmpty) streetName = (placemark.street ?? '').trim();
+      
       final houseNumber = (placemark.subThoroughfare ?? '').trim();
       final city = (placemark.locality ?? '').trim();
 
-      // MEGJEGYZÉS: Az Apple placemark.name mezőjét teljesen kihagyjuk, 
-      // mert az okozta a duplikációkat (pl. "95A" meg "Bd. Mihai Viteazul 95A").
-
       List<String> combined = [];
-
-      // Összerakjuk az utcát és a házszámot tisztán
-      if (street.isNotEmpty) {
-        if (houseNumber.isNotEmpty && !street.toLowerCase().contains(houseNumber.toLowerCase())) {
-          combined.add('$street $houseNumber');
-        } else {
-          combined.add(street);
-        }
-      } else if (houseNumber.isNotEmpty) {
-        combined.add(houseNumber);
-      }
-
-      // Hozzáadjuk a várost is, ha van
-      if (city.isNotEmpty && !combined.contains(city)) {
-        combined.add(city);
-      }
+      if (streetName.isNotEmpty) combined.add(streetName);
+      if (houseNumber.isNotEmpty) combined.add(houseNumber);
+      if (city.isNotEmpty) combined.add(city);
 
       if (combined.isNotEmpty) {
         return combined.join(', ');
