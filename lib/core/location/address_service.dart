@@ -78,12 +78,12 @@ class AddressCleaner {
 
     if (parts.isEmpty) return '';
 
-    // --- ÚJ JAVÍTÁS: Ha a cím végén (a város után) egy megye neve áll (pl. "Sălaj", "Cluj"), levágjuk! ---
+    // Megyék levágása a végéről
     while (parts.length >= 2 && _isCounty(parts.last)) {
       parts.removeLast();
     }
 
-    // Duplikációk kiszűrése (pl. ha a város neve kétszer szerepelne egymás után)
+    // Duplikációk kiszűrése
     final deduplicated = <String>[];
     for (final p in parts) {
       if (deduplicated.isEmpty || deduplicated.last.toLowerCase() != p.toLowerCase()) {
@@ -187,34 +187,28 @@ class AddressService {
 
       final street = (placemark.thoroughfare ?? placemark.street ?? '').trim();
       final houseNumber = (placemark.subThoroughfare ?? '').trim();
-      String name = (placemark.name ?? '').trim();
       final city = (placemark.locality ?? '').trim();
 
-      // 1. Töröljük a hibás vagy túl rövid neveket
-      if (name.contains('+') || name.length <= 3) {
-        name = '';
-      }
-
-      String streetFull = '$street $houseNumber'.trim();
-
-      // --- 2. APPLE MAPS DUPLIKÁCIÓ SZŰRÉSE (iOS specifikus javítás) ---
-      // Ha a 'name' (név) mező tartalma megegyezik az utcával vagy a házszámmal
-      // (pl. az Apple gyakran csak a "95A"-t adja vissza névként), azonnal eldobjuk!
-      if (name.isNotEmpty) {
-        final nLower = name.toLowerCase();
-        final sLower = street.toLowerCase();
-        final sfLower = streetFull.toLowerCase();
-        final hLower = houseNumber.toLowerCase();
-
-        if (nLower == sLower || nLower == sfLower || nLower == hLower || sfLower.contains(nLower)) {
-          name = ''; // Töröljük a nevet, mert csak duplikáció!
-        }
-      }
+      // MEGJEGYZÉS: Az Apple placemark.name mezőjét teljesen kihagyjuk, 
+      // mert az okozta a duplikációkat (pl. "95A" meg "Bd. Mihai Viteazul 95A").
 
       List<String> combined = [];
-      if (name.isNotEmpty) combined.add(name);
-      if (streetFull.isNotEmpty) combined.add(streetFull);
-      if (city.isNotEmpty) combined.add(city);
+
+      // Összerakjuk az utcát és a házszámot tisztán
+      if (street.isNotEmpty) {
+        if (houseNumber.isNotEmpty && !street.toLowerCase().contains(houseNumber.toLowerCase())) {
+          combined.add('$street $houseNumber');
+        } else {
+          combined.add(street);
+        }
+      } else if (houseNumber.isNotEmpty) {
+        combined.add(houseNumber);
+      }
+
+      // Hozzáadjuk a várost is, ha van
+      if (city.isNotEmpty && !combined.contains(city)) {
+        combined.add(city);
+      }
 
       if (combined.isNotEmpty) {
         return combined.join(', ');
